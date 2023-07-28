@@ -12,7 +12,7 @@ class MotifPiece:
     def __init__(self, dataset = None, vocab_path = None, pre_transform = None):
         self.pre_transform = None
         self.dataset_size = 0
-        self.threshold = 100
+        self.threshold = 5
         if os.path.isfile(vocab_path+"motif_vocab.txt"):
             with open(vocab_path+"motif_vocab.txt", "r") as file:
                 self.motif_vocab = json.load(file)
@@ -75,11 +75,11 @@ class MotifPiece:
             
             # Select the best motif candidate
             selected_motif = max(motif_count, key=motif_count.get)
-            print(selected_motif)
-            print(motif_count)
+            # print(selected_motif)
+            # print(motif_count)
             
             
-            if motif_count[selected_motif] < 5:
+            if motif_count[selected_motif] < self.threshold:
                 print("Beak the program!!!")
                 break
             else:
@@ -216,7 +216,7 @@ class MotifPiece:
     def inference(self, input_smiles):
         mol = get_mol(input_smiles)
         mol = sanitize(mol)
-        print(f"Number of atoms: {mol.GetNumAtoms()}")
+        # print(f"Number of atoms: {mol.GetNumAtoms()}")
         if mol == None:
             print("The data can not be identified by RDKit!")
             return 0
@@ -290,15 +290,24 @@ class MotifPiece:
                 break
             iteration += 1
         extracted_motif = {}
+        motif_smiles_list = []
+        s_id_list = []
+        # print(f"s dict: {s_dict}")
+        # print(f"v dict: {v_dict}")
+        # print(f"e dict: {e_dict}")
         for subgraph_id, atom_list in v_dict.items():
             m_mol = get_fragment_mol(mol, atom_list)
             m_smiles = get_smiles(m_mol)
             m_smiles = sanitize_smiles(m_smiles)
-            if m_smiles not in extracted_motif:
-                extracted_motif[m_smiles] = 1
-            else:
-                extracted_motif[m_smiles] += 1
-        return extracted_motif
+            motif_smiles_list.append(m_smiles)
+            s_id_list.append(subgraph_id)
+        
+        edge_list = []
+        for edge_id, edge in e_dict.items():
+            edge_list.append((s_id_list.index(edge[0]), s_id_list.index(edge[1])))
+        # print(motif_smiles_list)
+        # print(f"edges: {edge_list}")
+        return motif_smiles_list, edge_list
                                 
 
 
