@@ -22,15 +22,16 @@ import os
 
 class HeterTUDataset(InMemoryDataset):
     # def __init__(self, root, name) -> object:
-    def __init__(self, root, name, num_nodes, transform=None, pre_transform=None, pre_filter=None):
+    def __init__(self, root, name, transform=None, pre_transform=None, pre_filter=None):
         # super().__init__(root, transform, pre_transform, pre_filter)
         self.name = name
-        self.num_nodes = num_nodes
         self.motif_vocab = {}
         self.cliques_edge = {}
         self.check = {}
-        if self.name in ["PTC_MR", "Mutagenicity", "COX2_MD", "COX2", "BZR", "BZR_MD", "DHFR_MD", "MUTAG", "NCI1", "ER_MD", "PTC_FR", "PTC_MM", "PTC_FM"]:
+        if self.name in ["PTC_MR", "PTC_FR", "PTC_MM", "PTC_FM"]:
             self.dataset = TUDataset("dataset/", self.name)
+            self.dataset_list = [TUDataset("dataset/", x) for x in ["PTC_MR", "PTC_FR", "PTC_MM", "PTC_FM"]]
+            self.name_list = ["PTC_MR", "PTC_FR", "PTC_MM", "PTC_FM"]
             self.data_type = "TUData"
         else:
             smiles_list = []
@@ -49,15 +50,6 @@ class HeterTUDataset(InMemoryDataset):
                 print('Wrong raw data mapping!')
             self.dataset = tuple([smiles_list, labels])
             self.data_type = "MolNet"
-            
-        # if method == "MotifPiece":
-        #     with open("checkpoints/"+self.name+"_bridge_nomerge_vocab_id.txt", 'r') as file:
-        #         self.vocab_id = json.load(file)
-        #     with open("checkpoints/"+self.name+"_bridge_nomerge_inv_vocab_mapping.txt", 'r') as file:
-        #         self.inv_vocab_mapping = json.load(file)
-        # else:
-        #     self.vocab_id = {}
-        #     self.inv_vocab_mapping = {}
 
         super().__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0])
@@ -90,24 +82,20 @@ class HeterTUDataset(InMemoryDataset):
         return 0
     
     def process(self):
-        if self.name == "clintox":
-            self.labels = torch.empty((self.num_nodes, 2), dtype=torch.long)
-        elif self.name == "sider":
-            self.labels = torch.empty((self.num_nodes, 27), dtype=torch.long)
-        elif self.name == "tox21":
-            self.labels = torch.empty((self.num_nodes, 12), dtype=torch.long)
-        elif self.name == "toxcast":
-            self.labels = torch.empty((self.num_nodes, 617), dtype=torch.long)
-        elif self.name == "muv":
-            self.labels = torch.empty((self.num_nodes, 17), dtype=torch.long)
-        else:
-            self.labels = torch.empty((self.num_nodes, 1), dtype=torch.long)
         heter_edge_attr = torch.empty((0,))
         if self.data_type == "TUData":
-
+            all_smiles_list = []
             smiles_list = []
             label_list = []
             graph_indices = []
+            for i, dataset in enumerate(self.dataset_list):
+                for j, data in enumerate(dataset):
+                    smiles = to_smiles(data, True, self.name_list[i])
+                    smiles = sanitize_smiles(smiles)
+                    if smiles == None:
+                        continue
+                    else:
+                        all_smiles_list.append(smiles)
             for i, data in enumerate(self.dataset):
                 smiles = to_smiles(data, True, self.name)
                 smiles = sanitize_smiles(smiles)
@@ -119,8 +107,12 @@ class HeterTUDataset(InMemoryDataset):
                     if label.item() == -1:
                         label_list.append(0)
                     else:
-                        label_list.append(1)
+                        label_list.append(label.item())
                     graph_indices.append(i)
+            
+            label_list = torch.tensor(label_list).unsqueeze(1)
+            print(f"Number of all smiles: {len(all_smiles_list)}")
+            motifpiece = MotifPiece(all_smiles_list, "motif_vocabulary/"+self.name+"/")
 
         elif self.data_type == "MolNet":
 
@@ -135,8 +127,8 @@ class HeterTUDataset(InMemoryDataset):
                     smiles_list.append(smiles)
                     graph_indices.append(i)
                     label_list.append(label)
-        
-        motifpiece = MotifPiece(smiles_list, "motif_vocabulary/"+self.name+"/")
+            label_list = torch.tensor(label_list)
+            motifpiece = MotifPiece(smiles_list, "motif_vocabulary/"+self.name+"/")
 
         for i, smiles in enumerate(smiles_list):
             motif_smiles_list, edge_list = motifpiece.inference(smiles)
@@ -163,15 +155,29 @@ class HeterTUDataset(InMemoryDataset):
         heter_edge_index = torch.tensor(heter_edge_list).t().contiguous()
         heter_edge_index = torch.unique(heter_edge_index, dim=1)
 
-        motif_label = [-1 for x in range(len(self.motif_vocab))]
-        label_list.extend(motif_label)
-        y = torch.tensor(label_list)
+        # if self.name == "clintox":
+        #     self.labels = torch.empty((self.num_nodes, 2), dtype=torch.long)
+        # elif self.name == "sider":
+        #     self.labels = torch.empty((self.num_nodes, 27), dtype=torch.long)
+        # elif self.name == "tox21":
+        #     self.labels = torch.empty((self.num_nodes, 12), dtype=torch.long)
+        # elif self.name == "toxcast":
+        #     self.labels = torch.empty((self.num_nodes, 617), dtype=torch.long)
+        # elif self.name == "muv":
+        #     self.labels = torch.empty((self.num_nodes, 17), dtype=torch.long)
+        # else:
+        #     self.labels = torch.empty((self.num_nodes, 1), dtype=torch.long)
+
+        # label_list = torch.tensor(label_list)
+
+        motif_labels = torch.empty((len(self.motif_vocab), label_list.size(1)), dtype=torch.int64)
+        y = torch.cat((motif_labels, label_list), dim=0)
 
         graph_indices = torch.tensor(graph_indices)
 
         motif_smiles = sorted(self.motif_vocab, key=self.motif_vocab.get)
         
-        heter_data = Data(x=x, edge_index=heter_edge_index, y=y, motif_smiles=motif_smiles, graph_indices=graph_indices)
+        heter_data = Data(x=x, edge_index=heter_edge_index, y=y, motif_smiles=motif_smiles, graph_indices=graph_indices, graph_smiles=smiles_list)
         print(f"heterogeneous graph: {heter_data}")
 
         data_smiles_series = pd.Series(smiles_list)
