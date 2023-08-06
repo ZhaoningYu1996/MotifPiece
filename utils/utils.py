@@ -1,4 +1,5 @@
 import rdkit.Chem as Chem
+from rdkit import RDLogger 
 
 
 def get_fragment_mol(mol, atom_indices):
@@ -16,6 +17,7 @@ def get_fragment_mol(mol, atom_indices):
     return submol
 
 def get_mol(smiles):
+    RDLogger.DisableLog('rdApp.*')  
     mol = Chem.MolFromSmiles(smiles)
     if mol is None: 
         return None
@@ -25,6 +27,7 @@ def get_mol(smiles):
     return mol
 
 def get_smiles(mol):
+    RDLogger.DisableLog('rdApp.*')  
     return Chem.MolToSmiles(mol, kekuleSmiles=True)
 
 def sanitize(mol):
