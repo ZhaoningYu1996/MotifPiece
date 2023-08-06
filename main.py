@@ -1,9 +1,9 @@
 import torch
 from utils.hmdataset import HeterTUDataset
 from utils.motif_dataset import MotifDataset
-from utils.raw_dataset import RawDataset
-from torch_geometric.datasets import Planetoid, MoleculeNet
-from utils.model import GCN, GIN, Classifier, GAT, GINModel, GCNModel
+# from utils.raw_dataset import RawDataset
+from torch_geometric.datasets import MoleculeNet, TUDataset
+from utils.model import GIN, GINModel
 import numpy as np
 from torch.optim import Adam
 from torch.optim.lr_scheduler import StepLR
@@ -48,10 +48,10 @@ def train_mol(loader):
     for data in loader:
         data.to(device)
         mask = data.n_id
-        threshold_1 = mask >= num_nodes
-        raw_mask = mask[threshold_1]-num_nodes
+        threshold_1 = mask >= num_motifs
+        raw_mask = mask[threshold_1]-num_motifs
         raw_mask_indices = threshold_1.nonzero().squeeze().to(device)
-        threshold_2 = mask < num_nodes
+        threshold_2 = mask < num_motifs
         motif_mask = mask[threshold_2]
         motif_mask_indices = threshold_2.nonzero().squeeze().to(device)
         motif_loader = DataLoader(motif_dataset[motif_mask], batch_size=len(motif_dataset[motif_mask]))
@@ -90,7 +90,7 @@ def train_mol(loader):
         # node_feature = torch.cat((node_feature, n_f), dim=1)
 
         # Get motif level graph embeddings
-        pred = heter_model(node_feature, data, False)[:data.batch_size]
+        pred = heter_model(node_feature, data)[:data.batch_size]
 
         # # Create atom level batch based on sampled target nodes in hetergeneous graph
         # selected_indices = data.n_id[:data.batch_size]
@@ -142,10 +142,10 @@ def test_mol(loader):
         for data in loader:
             data.to(device)
             mask = data.n_id
-            threshold_1 = mask >= num_nodes
-            raw_mask = mask[threshold_1]-num_nodes
+            threshold_1 = mask >= num_motifs
+            raw_mask = mask[threshold_1]-num_motifs
             raw_mask_indices = threshold_1.nonzero().squeeze().to(device)
-            threshold_2 = mask < num_nodes
+            threshold_2 = mask < num_motifs
             motif_mask = mask[threshold_2]
             motif_mask_indices = threshold_2.nonzero().squeeze().to(device)
             motif_loader = DataLoader(motif_dataset[motif_mask], batch_size=len(motif_dataset[motif_mask]))
@@ -182,7 +182,7 @@ def test_mol(loader):
             # selected_graphs = [graph_dataset[i-num_nodes] for i in selected_indices]
             # batch = Batch.from_data_list(selected_graphs).to(device)
             
-            pred = heter_model(node_feature, data, False)[:data.batch_size]
+            pred = heter_model(node_feature, data)[:data.batch_size]
             # atom_out = atom_model(batch)
             # out = torch.cat((heter_out[:data.batch_size], atom_out), dim=1)
                 # pred = classifier(out)
@@ -198,12 +198,13 @@ def test_mol(loader):
     return sum(roc_list)/len(roc_list) #y_true.shape[1]
         
 
-def train(data, mask, data_type):
+def train(data, mask):
     model.train()
     motif_model.train()
     raw_model.train()
     # n_f_model.train()
     # print(data_type)
+    # print(data.y)
     for batch in motif_loader:
         batch.to(device)
         motif_x = batch.x
@@ -223,14 +224,12 @@ def train(data, mask, data_type):
     # n_f = n_f_model(data.x)
     # node_feature = torch.cat((node_feature, n_f), dim=1)
 
-    out = model(node_feature, data, False)
-    # out = model(data.x, data, False)
+    out = model(node_feature, data)
     optimizer.zero_grad()  # Clear gradients.
     optimizer_motif.zero_grad()
     optimizer_raw.zero_grad()
     # optimizer_n_f.zero_grad()
-    
-    loss = criterion(out[mask], data.y[mask])  # TUDataset
+    loss = criterion(out[mask], data.y[mask].squeeze())  # TUDataset
     
     loss.backward()  # Derive gradients.
     optimizer.step()  # Update parameters based on gradients.
@@ -239,7 +238,7 @@ def train(data, mask, data_type):
     # optimizer_n_f.step()
     return loss
 
-def test(data, mask, data_type):
+def test(data, mask):
       model.eval()
       motif_model.eval()
       raw_model.eval()
@@ -262,17 +261,18 @@ def test(data, mask, data_type):
         node_feature = torch.cat((motif_out, raw_out), dim=0)
         # n_f = n_f_model(data.x)
         # node_feature = torch.cat((node_feature, n_f), dim=1)
-        out = model(node_feature, data, False)
+        out = model(node_feature, data)
+        
         # out = model(data.x, data, False)
         pred = out.argmax(dim=1)  # Use the class with highest probability.
-        test_correct = pred[mask] == data.y[mask]  # Check against ground-truth labels.
+        test_correct = pred[mask] == data.y[mask].squeeze()  # Check against ground-truth labels.
         test_acc = int(test_correct.sum()) / len(mask)  # Derive ratio of correct predictions.
         return test_acc
 
 
 # set_seed(0)
 
-data_name ="muv"
+data_name ="PTC_MM"
 if data_name == "bbbp":
     # num_nodes = 3153         # bridge
     # num_nodes = 2242         # BRICS
@@ -286,53 +286,18 @@ elif data_name == "toxcast":
     # num_nodes = 7659         # BRICS
     # num_nodes = 9723         # bridge
     num_classes = 617
-elif data_name == "PTC_MR":
-    num_nodes = 95           # hmgnn
-    # num_nodes = 97           # MotifPiece
-    # num_nodes = 150
-    # num_nodes = 348          # BRICS
-    # num_nodes = 472          # bridge
-    num_classes=2
-elif data_name == "PTC_FR":
-    # num_nodes = 474          # bridge
-    # num_nodes = 353          # BRICS
-    # num_nodes = 101          # hmgnn
-    num_nodes = 103          # MotifPiece
-    start_index, end_index = num_nodes, num_nodes+309
-elif data_name == "PTC_MM":
+
+
     # num_nodes = 429          #bridge
     # num_nodes = 330          # BRICS
     # num_nodes = 93           # hmgnn
-    num_nodes = 95           # MotifPiece
-    num_graphs = 290
-    start_index, end_index = num_nodes, num_nodes+num_graphs
-elif data_name == "PTC_FM":
-    # num_nodes = 453          # bridge
-    # num_nodes = 347          # BRICS
-    num_nodes = 93           # hmgnn
-    # num_nodes = 95           # MotifPiece
-    num_graphs = 305
-    start_index, end_index = num_nodes, num_nodes+num_graphs
+    
+
 elif data_name == "COX2":
     num_nodes = 60
-elif data_name == "COX2_MD":
-    # num_nodes = 421           # bridge
-    # num_nodes = 306           # BRICS
-    num_nodes = 40            # R&B
-    # num_nodes = 42
+
 elif data_name == "BZR":
     num_nodes = 102
-elif data_name == "BZR_MD":
-    # num_nodes = 73      
-    # num_nodes = 63            # R&B
-    # num_nodes = 65            # MotifPiece
-    # num_nodes = 235           # BRICS
-    num_nodes = 335           # bridge
-elif data_name == "DHFR_MD":
-    num_nodes = 476
-    # num_nodes = 345           # BRICS
-    # num_nodes = 55            # R&B
-    # num_nodes = 60            # MotifPiece
 elif data_name == "ER_MD":
     num_nodes = 599
     # num_nodes = 456           # BRICS
@@ -340,9 +305,6 @@ elif data_name == "ER_MD":
     # num_nodes = 77 # threshold = 100
     # num_nodes = 85 # threshold = 10
     start_index, end_index = num_nodes, num_nodes+422
-elif data_name == "Mutagenicity":
-    num_nodes = 250
-    start_index, end_index = num_nodes, num_nodes+3552
 elif data_name == "MUTAG":
     num_nodes = 60
 elif data_name == "NCI1":
@@ -380,60 +342,47 @@ elif data_name == "tox21":
     # num_nodes = 8773             # bridge
     num_classes = 12
 # num_nodes = 2000
-dataset = HeterTUDataset('data/' + data_name, data_name, num_nodes)
+dataset = HeterTUDataset('dataset/' + data_name, data_name)
 heter_data = dataset[0]
+motif_smiles = heter_data.motif_smiles
+selected_graphs = heter_data.graph_indices
+num_motifs = len(motif_smiles)
+del heter_data.motif_smiles, heter_data.graph_indices
 # print(heter_data.edge_index)
-motif_dataset = MotifDataset("motif_data/"+data_name)
+motif_dataset = MotifDataset("motif_data/"+data_name, motif_smiles)
 motif_batch_size = len(motif_dataset)
 print(f"number of motifs: {motif_batch_size}")
 
-# print(f"number of motif graphs: {len(motif_dataset)}")
-
-
-# print(f"number of raw datasets: {len(raw_dataset)}")
-# print(raw_dataset[0].x)
-# print(raw_dataset[0].edge_attr)
-
-# print(motif_dataset[-1])
-# print(stop)
-# print(data.edge_index[:,:500])
-# print(data.edge_index[:,500:1000])
-# print(data.edge_index[:,1000:1500])
-# print(data.edge_index[:,1500:2000])
-# print(data.edge_index[:,2000:2500])
-# print(data.edge_index[:,2500:3000])
-# print(data.edge_index[:,3000:])
-
-
-
-
-# print(sample_data.edge_attr)
-# print(stop)
-
-
-
 if data_name in ["PTC_MR", "Mutagenicity", "COX2_MD", "COX2", "BZR", "BZR_MD", "DHFR_MD", "ER_MD", "PTC_FR", "PTC_MM", "PTC_FM"]:
-    print("xx")
     data_type = "TUData"
     if data_name == "PTC_MR":
-        start_index, end_index = num_nodes, num_nodes+307
+        start_index, end_index = num_motifs, num_motifs+307
         # start_index, end_index = num_nodes, num_nodes+348
+    elif data_name == "PTC_MM":
+        num_graphs = 290
+        start_index, end_index = num_motifs, num_motifs+num_graphs
+    elif data_name == "PTC_FR":
+        start_index, end_index = num_motifs, num_motifs+309
+    elif data_name == "PTC_FM":
+        num_graphs = 305
+        start_index, end_index = num_motifs, num_motifs+num_graphs
     elif data_name == "MUTAG":
-        start_index, end_index = num_nodes, num_nodes
+        start_index, end_index = num_motifs, num_motifs
     elif data_name == "Mutagenicity":
-        start_index, end_index = num_nodes, num_nodes+3552
+        start_index, end_index = num_motifs, num_motifs+3552
     elif data_name == "COX2_MD":
-        start_index, end_index = num_nodes, num_nodes+297
+        start_index, end_index = num_motifs, num_motifs+297
     elif data_name == "COX2":
-        start_index, end_index = num_nodes, num_nodes+467
+        start_index, end_index = num_motifs, num_motifs+467
     elif data_name == "BZR":
-        start_index, end_index = num_nodes, num_nodes+405
+        start_index, end_index = num_motifs, num_motifs+405
     elif data_name == "BZR_MD":
-        start_index, end_index = num_nodes, num_nodes+210
+        start_index, end_index = num_motifs, num_motifs+210
     elif data_name == "DHFR_MD":
-        start_index, end_index = num_nodes, num_nodes+345
+        start_index, end_index = num_motifs, num_motifs+345
 
-    raw_dataset = RawDataset("raw_data/"+data_name)
+    # print(selected_graphs)
+    raw_dataset = TUDataset("raw_data/"+data_name, data_name)[selected_graphs]
     raw_loader = DataLoader(raw_dataset, batch_size=len(raw_dataset))
     motif_loader = DataLoader(motif_dataset, batch_size=len(motif_dataset))
     selected_nodes = np.arange(start_index, end_index)
@@ -462,20 +411,23 @@ if data_name in ["PTC_MR", "Mutagenicity", "COX2_MD", "COX2", "BZR", "BZR_MD", "
         raw_model = GINModel(1, 1, dim_motif, dim_motif, 2, 0.0).to(device)
         motif_model = GINModel(1, 1, dim_motif, dim_motif, 2, 0.0).to(device)
         # n_f_model = torch.nn.Linear(num_nodes, dim_n_f).to(device)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-        optimizer_motif = torch.optim.Adam(motif_model.parameters(), lr=0.001)
-        optimizer_raw = torch.optim.Adam(raw_model.parameters(), lr=0.001)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+        optimizer_motif = torch.optim.Adam(motif_model.parameters(), lr=0.01)
+        optimizer_raw = torch.optim.Adam(raw_model.parameters(), lr=0.01)
         # optimizer_n_f = torch.optim.Adam(n_f_model.parameters(), lr=0.001)
         # Set up the learning rate scheduler
         # scheduler = StepLR(optimizer, step_size=50, gamma=0.5)
         criterion = torch.nn.CrossEntropyLoss()
 
-        for epoch in tqdm(range(1, num_epoch)):
+        # print(f"train_mask: {train_mask}")
+        # print(f"Test mask: {test_mask}")
 
-            loss = train(heter_data, train_mask, data_type)
+        for epoch in tqdm(range(1, num_epoch)):
+            loss = train(heter_data, train_mask)
             # scheduler.step()
-            train_acc = test(heter_data, train_mask, data_type)
-            test_acc = test(heter_data, test_mask, data_type)
+            
+            train_acc = test(heter_data, train_mask)
+            test_acc = test(heter_data, test_mask)
             if test_acc > best_test:
                 best_test = test_acc
             # print(f'Epoch: {epoch:03d}, Loss: {loss:.4f}, Train acc: {train_acc:.4f}, Test acc: {test_acc:.4f}.')
@@ -488,25 +440,24 @@ if data_name in ["PTC_MR", "Mutagenicity", "COX2_MD", "COX2", "BZR", "BZR_MD", "
 elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "toxcast"]:
     print("hh")
     data_type = "MolNet"
-    smiles_list = heter_data.smiles_list
-    print(f"Number of samples: {len(smiles_list)}")
-    graph_dataset = MoleculeNet('ori_data/', data_name)[heter_data.selected_idx]
-    del heter_data.selected_idx
+    graph_smiles = heter_data.graph_smiles
+    print(f"Number of samples: {len(graph_smiles)}")
+    graph_dataset = MoleculeNet('raw_data/', data_name)[selected_graphs]
     sample_data = graph_dataset[0]
     print(f"number of raw graphs: {len(graph_dataset)}")
     
-    train_idx, val_idx, test_idx = scaffold_split(smiles_list)
+    train_idx, val_idx, test_idx = scaffold_split(graph_smiles)
 
-    train_idx = torch.tensor([x + num_nodes for x in train_idx])
-    val_idx = torch.tensor([x + num_nodes for x in val_idx])
-    test_idx = torch.tensor([x + num_nodes for x in test_idx])
+    train_idx = torch.tensor([x + num_motifs for x in train_idx])
+    val_idx = torch.tensor([x + num_motifs for x in val_idx])
+    test_idx = torch.tensor([x + num_motifs for x in test_idx])
     perm = torch.randperm(train_idx.size(0))
     train_idx = train_idx[perm]
     perm = torch.randperm(val_idx.size(0))
     val_idx = val_idx[perm]
     perm = torch.randperm(test_idx.size(0))
     test_idx = test_idx[perm]
-    train_mask = torch.zeros((num_nodes+len(smiles_list)), dtype=torch.bool)
+    train_mask = torch.zeros((num_motifs+len(graph_smiles)), dtype=torch.bool)
     # print(f"train idx: {train_idx}")
     # print(f"val idx: {val_idx}")
     # print(f"test idx: {test_idx}")
@@ -522,16 +473,16 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     # train_mask = torch.tensor(train_idx)
     # val_mask = torch.tensor(val_idx)
     # test_mask = torch.tensor(test_idx)
-    del heter_data.smiles_list
+    del heter_data.graph_smiles
     # print(data.edge_index)
     # print(data.edge_index.contiguous())
-    batch_size = 3000
+    batch_size = 32
     heter_data.x = heter_data.x.contiguous()
     heter_data.edge_index = heter_data.edge_index.contiguous()
     train_loader = NeighborLoader(
     heter_data,
     # Sample 30 neighbors for each node for 2 iterations
-    num_neighbors=[30]*5,
+    num_neighbors=[30]*4,
     # Use a batch size of 128 for sampling training nodes
     batch_size=batch_size,
     input_nodes=train_idx,
@@ -539,7 +490,7 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     val_loader = NeighborLoader(
     heter_data,
     # Sample 30 neighbors for each node for 2 iterations
-    num_neighbors=[30]*5,
+    num_neighbors=[30]*4,
     # Use a batch size of 128 for sampling training nodes
     batch_size=batch_size,
     input_nodes=val_idx,
@@ -547,7 +498,7 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     test_loader = NeighborLoader(
     heter_data,
     # Sample 30 neighbors for each node for 2 iterations
-    num_neighbors=[30]*5,
+    num_neighbors=[30]*4,
     # Use a batch size of 128 for sampling training nodes
     batch_size=batch_size,
     input_nodes=test_idx,
@@ -573,14 +524,14 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     # optimizer2 = torch.optim.Adam(atom_model.parameters(), lr=0.001)
     # criterion = torch.nn.CrossEntropyLoss()
     criterion = torch.nn.BCEWithLogitsLoss(reduction = "none")
-    num_epoch = 300
+    num_epoch = 100
     best_val = 0.0
     best_test = 0.0
     for epoch in range(1, num_epoch+1):
-        loss = train_sample(train_loader)
-        train_acc = test_sample(train_loader)
-        val_acc = test_sample(val_loader)
-        test_acc = test_sample(test_loader)
+        loss = train_mol(train_loader)
+        train_acc = test_mol(train_loader)
+        val_acc = test_mol(val_loader)
+        test_acc = test_mol(test_loader)
         if val_acc > best_val:
             best_val = val_acc
             best_test = test_acc
