@@ -9,10 +9,9 @@ MST_MAX_WEIGHT = 100
 MAX_NCAND = 2000
 
 class MotifPiece:
-    def __init__(self, dataset = None, vocab_path = None, pre_transform = None):
+    def __init__(self, dataset = None, vocab_path = None, threshold=None, pre_transform = None):
         self.pre_transform = None
-        self.dataset_size = 0
-        self.threshold = 2
+        self.threshold = threshold
         if os.path.isfile(vocab_path+"motif_vocab.txt"):
             with open(vocab_path+"motif_vocab.txt", "r") as file:
                 self.motif_vocab = json.load(file)
@@ -23,7 +22,7 @@ class MotifPiece:
                 os.makedirs(vocab_path)
             with open(vocab_path+"motif_vocab.txt", "w") as file:
                 file.write(json.dumps(self.motif_vocab))
-        print(f"motif vocabulary: {self.motif_vocab}")
+        # print(f"motif vocabulary: {self.motif_vocab}")
     
     def process(self, dataset):
         """
@@ -40,8 +39,10 @@ class MotifPiece:
         iteration = 0
         while True:
             print(f"Iteration: {iteration}")
+
             motif_count = {}
             count_graph = 0
+
             for i, data in tqdm(enumerate(dataset), desc="motif generation"):
                 mol = get_mol(data)
                 mol = sanitize(mol)
@@ -59,6 +60,8 @@ class MotifPiece:
                     count_graph += 1
                     
                     for subgraph_id, edge_list in s_dict.items():
+                        if len(edge_list) == 0:
+                            continue
                         for j in range(len(edge_list)-1):
                             for k in range(j+1, len(edge_list)):
                                 e1 = e_dict[edge_list[j]]
@@ -75,6 +78,9 @@ class MotifPiece:
                                     motif_count[m_smiles] += 1
             
             # Select the best motif candidate
+
+            if len(motif_count)==0:
+                break
             selected_motif = max(motif_count, key=motif_count.get)
             # print(selected_motif)
             # print(motif_count)
@@ -157,6 +163,7 @@ class MotifPiece:
                             if break_all == -1:
                                 break
             iteration += 1
+
         
     
 
