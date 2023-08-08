@@ -272,7 +272,7 @@ def test(data, mask):
 
 # set_seed(0)
 
-data_name ="PTC_MM"
+data_name ="PTC_FR"
 if data_name == "bbbp":
     # num_nodes = 3153         # bridge
     # num_nodes = 2242         # BRICS
