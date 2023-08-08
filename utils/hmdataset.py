@@ -61,25 +61,6 @@ class HeterTUDataset(InMemoryDataset):
     @property
     def raw_file_names(self):
         return ["smiles.csv"]
-
-    def add_id(self, mol):
-        for atom in mol.GetAtoms():
-            atom.SetIntProp("OriID", atom.GetIdx())
-            # print(atom.GetIntProp("OriID"))
-        return mol
-    
-    def get_bonds(self, mol):
-        bonds_list = []
-        for bond in mol.GetBonds():
-            b1 = bond.GetBeginAtomIdx()
-            b2 = bond.GetEndAtomIdx()
-            bonds_list.append(sorted(tuple([b1, b2])))
-            # bonds_list.append(tuple([b2, b1]))
-        return bonds_list
-    
-    def generate_heter(self, smiles, count):
-              
-        return 0
     
     def process(self):
         heter_edge_attr = torch.empty((0,))
@@ -112,7 +93,7 @@ class HeterTUDataset(InMemoryDataset):
             
             label_list = torch.tensor(label_list).unsqueeze(1)
             print(f"Number of all smiles: {len(all_smiles_list)}")
-            motifpiece = MotifPiece(all_smiles_list, "motif_vocabulary/"+self.name+"/")
+            motifpiece = MotifPiece(all_smiles_list, "motif_vocabulary/"+self.name+"/", threshold=1)
 
         elif self.data_type == "MolNet":
 
@@ -128,7 +109,7 @@ class HeterTUDataset(InMemoryDataset):
                     graph_indices.append(i)
                     label_list.append(label)
             label_list = torch.tensor(label_list)
-            motifpiece = MotifPiece(smiles_list, "motif_vocabulary/"+self.name+"/")
+            motifpiece = MotifPiece(smiles_list, "motif_vocabulary/"+self.name+"/", threshold=1)
 
         for i, smiles in enumerate(smiles_list):
             motif_smiles_list, edge_list = motifpiece.inference(smiles)
