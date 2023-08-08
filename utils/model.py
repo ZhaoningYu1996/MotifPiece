@@ -91,6 +91,43 @@ class GIN(torch.nn.Module):
             x = F.relu(x)
             if i != len(self.convs) - 2:
                 x = F.dropout(x, p=0.0, training=self.training)
-            # x = self.convs[-1](x, edge_index)
-            x = self.classifier(x)
-            return x
+        x = self.classifier(x)
+        return x
+        
+class CGIN(torch.nn.Module):
+    def __init__(self, num_features, hidden_dim=64, num_classes=2, num_layers=5):
+        super(CGIN, self).__init__()
+
+        self.convs = nn.ModuleList()
+        self.batch_norms = nn.ModuleList()
+        self.convs.append(GINConv(nn.Sequential(nn.Linear(num_features, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, hidden_dim))))
+        self.batch_norms.append(nn.BatchNorm1d(hidden_dim))
+        
+        for _ in range(num_layers - 2):
+            self.convs.append(GINConv(nn.Sequential(nn.Linear(hidden_dim, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, hidden_dim))))
+            self.batch_norms.append(torch.nn.BatchNorm1d(hidden_dim))
+        
+        self.classifier = Linear(hidden_dim, num_classes)
+        self.convs.append(GINConv(nn.Sequential(nn.Linear(hidden_dim, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, num_classes))))
+        self.linear = Linear(num_features, hidden_dim)
+
+    def forward(self, x, data):
+        edge_index = data.edge_index
+        for i in range(len(self.convs)-1):
+            x = self.convs[i](x, edge_index)
+            x = self.batch_norms[i](x)
+            x = F.relu(x)
+            if i != len(self.convs) - 2:
+                x = F.dropout(x, p=0.0, training=self.training)
+
+        return x
+    
+class Classifier(torch.nn.Module):
+    def __init__(self, hidden_dim, num_classes):
+        super(Classifier, self).__init__()
+        self.fc1 = Linear(hidden_dim, hidden_dim)
+        self.fc2 = Linear(hidden_dim, num_classes)
+
+    def forward(self, x):
+        # x = self.fc1(x).relu()
+        return self.fc2(x)
