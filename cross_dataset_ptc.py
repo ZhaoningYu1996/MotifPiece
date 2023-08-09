@@ -1,8 +1,8 @@
 import torch
-from utils.combined_dataset import CombinedDataset
+from utils.crossdataset import CombinedDataset
 from utils.motif_dataset import MotifDataset
-from torch_geometric.datasets import Planetoid, MoleculeNet
-from utils.model import GCN, GIN, Classifier, MTL, GINModel
+from torch_geometric.datasets import TUDataset
+from utils.model import GINModel, CrossTUDatasetGIN
 import numpy as np
 from torch.optim import Adam
 from torch.optim.lr_scheduler import StepLR
@@ -14,7 +14,6 @@ from torch_geometric.loader import DataLoader
 import os
 import random
 from tqdm import tqdm
-from utils.raw_dataset import RawDataset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
@@ -76,7 +75,8 @@ def train(data, mask1, mask2):
     # optimizer_gnn.zero_grad()  # Clear gradients.
     # optimizer_linear_1.zero_grad()
     # optimizer_linear_2.zero_grad()
-    loss = 1*criterion(out1[mask1], data.y[mask1]) + 1*criterion(out2[mask2], data.y[mask2])  # TUDataset
+
+    loss = 1*criterion(out1[mask1], data.y[mask1].squeeze()) + 1*criterion(out2[mask2], data.y[mask2].squeeze())  # TUDataset
     
     loss.backward()  # Derive gradients.
     # Update parameters based on gradients.
@@ -134,10 +134,10 @@ def test(data, mask1, mask2):
         return test_acc_1, test_acc_2
 
 # set_seed(0)
-data_name = ["PTC_FM", "PTC_FR"]
+data_name = ["PTC_MM", "PTC_MR"]
 # num_data1 = 297
 # num_data2 = 210
-num_nodes = 107
+# num_nodes = 107
 # num_nodes = 103                   # PTC_FM, PTC_MR
 # num_nodes = 101                   # PTC_FM, PTC_MM
 # num_nodes = 108                   # PTC_FR, PTC_MM
@@ -149,29 +149,19 @@ num_nodes = 107
 # num_nodes = 77                    # COX2_MD, BZR_MD
 # num_nodes = 105                   # ER_MD, BZR_MD
 # for data_name = 
-if data_name == "bbbp":
-    num_nodes = 600
-elif data_name == "toxcast":
-    num_nodes = 1100
-elif data_name == "PTC_MR":
-    num_nodes = 160
-elif data_name == "COX2":
-    num_nodes = 60
-elif data_name == "COX2_MD":
-    num_nodes = 90
-elif data_name == "BZR":
-    num_nodes = 102
-elif data_name == "BZR_MD":
-    num_nodes = 150
-# num_nodes = 2000
-dataset = CombinedDataset('combined_data/' + data_name[0] + "_" + data_name[1], data_name[0], data_name[1], num_nodes)
+
+dataset = CombinedDataset('combined_data/' + data_name[0] + "_" + data_name[1], data_name, threshold=[9, 9])
 data = dataset[0]
 print(data)
-graph_count = data.num_graphs
+motif_smiles = data.motif_smiles
+selected_graphs = data.graph_indices
+print(f"selected graphs: {selected_graphs}")
+num_motifs = len(motif_smiles)
+graph_count = data.num_graph
 num_data1 = graph_count[0]
 num_data2 = graph_count[1]
 
-motif_dataset = MotifDataset("motif_data/"+data_name[0]+"_"+data_name[1])
+motif_dataset = MotifDataset("motif_data/"+data_name[0]+"_"+data_name[1], motif_smiles)
 motif_batch_size = len(motif_dataset)
 # if num_nodes+num_data1+num_data2 != motif_batch_size:
 #     print("Error!")
@@ -181,9 +171,9 @@ if num_data1 != graph_count[0] or num_data2 != graph_count[1]:
     print("Hugh Error!")
     print(stop)
 
-motif_loader = DataLoader(motif_dataset, batch_size=num_nodes)
-raw_dataset1 = RawDataset("raw_data/"+data_name[0])
-raw_dataset2 = RawDataset("raw_data/"+data_name[1])
+motif_loader = DataLoader(motif_dataset, batch_size=num_motifs)
+raw_dataset1 = TUDataset("dataset/"+data_name[0], data_name[0])[selected_graphs[0]]
+raw_dataset2 = TUDataset("dataset/"+data_name[1], data_name[1])[selected_graphs[1]]
 data1_loader = DataLoader(raw_dataset1, batch_size=len(raw_dataset1))
 data2_loader = DataLoader(raw_dataset2, batch_size=len(raw_dataset2))
 print(motif_batch_size)
@@ -192,7 +182,7 @@ print(motif_dataset[-1])
 # print(stop)
 
 
-start_index_1, end_index_1 = num_nodes, num_nodes+graph_count[0]
+start_index_1, end_index_1 = num_motifs, num_motifs+graph_count[0]
 start_index_2, end_index_2 = end_index_1, end_index_1+graph_count[1]
 
 selected_nodes_1 = np.arange(start_index_1, end_index_1)
@@ -227,7 +217,7 @@ for i, (split_1, split_2) in enumerate(zip(splits_1, splits_2)):
     best_train_1 = 0.0
     best_train_2 = 0.0
     # model = GIN(num_nodes, 16, 2, 6).to(device)
-    model = MTL(16, 16, 2, 3).to(device)
+    model = CrossTUDatasetGIN(16, 16, 2, 2, 3).to(device)
     motif_model = GINModel(1, 1, 16, 16, 2, 0).to(device)
     data1_model = GINModel(1, 1, 16, 16, 2, 0).to(device)
     data2_model = GINModel(1, 1, 16, 16, 2, 0).to(device)
