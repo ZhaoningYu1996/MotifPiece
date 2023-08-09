@@ -272,7 +272,7 @@ def test(data, mask):
 
 # set_seed(0)
 
-data_name ="PTC_FR"
+data_name ="COX2_MD"
 if data_name == "bbbp":
     # num_nodes = 3153         # bridge
     # num_nodes = 2242         # BRICS
@@ -482,7 +482,7 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     train_loader = NeighborLoader(
     heter_data,
     # Sample 30 neighbors for each node for 2 iterations
-    num_neighbors=[30]*4,
+    num_neighbors=[30]*5,
     # Use a batch size of 128 for sampling training nodes
     batch_size=batch_size,
     input_nodes=train_idx,
@@ -490,7 +490,7 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     val_loader = NeighborLoader(
     heter_data,
     # Sample 30 neighbors for each node for 2 iterations
-    num_neighbors=[30]*4,
+    num_neighbors=[30]*5,
     # Use a batch size of 128 for sampling training nodes
     batch_size=batch_size,
     input_nodes=val_idx,
@@ -498,7 +498,7 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     test_loader = NeighborLoader(
     heter_data,
     # Sample 30 neighbors for each node for 2 iterations
-    num_neighbors=[30]*4,
+    num_neighbors=[30]*5,
     # Use a batch size of 128 for sampling training nodes
     batch_size=batch_size,
     input_nodes=test_idx,
@@ -515,10 +515,10 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     # motif_model = GCNModel(1, dim_motif, dim_motif, 3, 0.5).to(device)
     # raw_model = GCNModel(9, dim_motif, dim_motif, 3, 0.5).to(device)
 
-    optimizer_heter = torch.optim.Adam(heter_model.parameters(), lr=0.00005)
+    optimizer_heter = torch.optim.Adam(heter_model.parameters(), lr=0.01)
     # optimizer_atom = torch.optim.Adam(atom_model.parameters(), lr=0.001)
-    optimizer_motif = torch.optim.Adam(motif_model.parameters(), lr=0.00005)
-    optimizer_raw = torch.optim.Adam(raw_model.parameters(), lr=0.00005)
+    optimizer_motif = torch.optim.Adam(motif_model.parameters(), lr=0.01)
+    optimizer_raw = torch.optim.Adam(raw_model.parameters(), lr=0.01)
     # optimizer_n_f = torch.optim.Adam(n_f_model.parameters(), lr=0.00005)
     # optimizer_classifier = torch.optim.Adam(classifier.parameters(), lr=0.001)
     # optimizer2 = torch.optim.Adam(atom_model.parameters(), lr=0.001)
