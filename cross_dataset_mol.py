@@ -2,7 +2,7 @@ import torch
 from utils.crossdataset import CombinedDataset
 from utils.motif_dataset import MotifDataset
 from torch_geometric.datasets import Planetoid, MoleculeNet
-from utils.model import CGIN, GINModel, Classifier
+from utils.model import CGIN, GINModel, Classifier, CrossDatasetsGIN
 import numpy as np
 from torch.optim import Adam
 from torch.optim.lr_scheduler import StepLR
@@ -36,12 +36,13 @@ def create_node_folds(selected_nodes, num_folds=10):
     return np.array_split(node_indices, num_folds)
 
 def train(loader):
-    heter_model.train()
-    motif_model.train()
-    raw_model_1.train()
-    raw_model_2.train()
-    classifier1.train()
-    classifier2.train()
+    model.train()
+    # heter_model.train()
+    # motif_model.train()
+    # raw_model_1.train()
+    # raw_model_2.train()
+    # classifier1.train()
+    # classifier2.train()
     count = 0
     total_loss = 0
     for data in loader:
@@ -62,58 +63,62 @@ def train(loader):
         motif_loader = DataLoader(motif_dataset[motif_mask], batch_size=len(motif_dataset[motif_mask]))
         
         for batch in motif_loader:
-            batch.to(device)
-            motif_x = batch.x
-            motif_edge_index = batch.edge_index
-            motif_edge_attr = batch.edge_attr
-            motif_batch = batch.batch
-            motif_out = motif_model(motif_x, motif_edge_index, motif_edge_attr, motif_batch)
+            motif_data = batch.to(device)
+
+            # motif_x = batch.x
+            # motif_edge_index = batch.edge_index
+            # motif_edge_attr = batch.edge_attr
+            # motif_batch = batch.batch
+            # motif_out = motif_model(motif_x, motif_edge_index, motif_edge_attr, motif_batch)
             
         data1_loader = DataLoader(raw_dataset1[raw_mask_1], batch_size=len(raw_dataset1[raw_mask_1]))
         
         for batch in data1_loader:
-            batch.to(device)
-            raw_x = batch.x
-            raw_edge_index = batch.edge_index
-            raw_edge_attr = batch.edge_attr
-            raw_batch = batch.batch
-            raw_out_1 = raw_model_1(raw_x, raw_edge_index, raw_edge_attr, raw_batch)
+            raw_data_1 = batch.to(device)
+            # raw_x = batch.x
+            # raw_edge_index = batch.edge_index
+            # raw_edge_attr = batch.edge_attr
+            # raw_batch = batch.batch
+            # raw_out_1 = raw_model_1(raw_x, raw_edge_index, raw_edge_attr, raw_batch)
             
         data2_loader = DataLoader(raw_dataset2[raw_mask_2], batch_size=len(raw_dataset2[raw_mask_2]))
         for batch in data2_loader:
-            batch.to(device)
-            raw_x = batch.x
-            raw_edge_index = batch.edge_index
-            raw_edge_attr = batch.edge_attr
-            raw_batch = batch.batch
-            raw_out_2 = raw_model_2(raw_x, raw_edge_index, raw_edge_attr, raw_batch)
+            raw_data_2 = batch.to(device)
+            # raw_x = batch.x
+            # raw_edge_index = batch.edge_index
+            # raw_edge_attr = batch.edge_attr
+            # raw_batch = batch.batch
+            # raw_out_2 = raw_model_2(raw_x, raw_edge_index, raw_edge_attr, raw_batch)
         
         # node_input = torch.cat((motif_out, raw_out_1, raw_out_2), dim=0)
         
-        num_dim = raw_out_1.size(1)
-        node_feature = torch.empty((data.n_id.size(0), num_dim)).to(device)
-        node_feature[motif_mask_indices] = motif_out
-        node_feature[raw_mask_indices_1] = raw_out_1
-        node_feature[raw_mask_indices_2] = raw_out_2
+        # num_dim = raw_out_1.size(1)
+        # node_feature = torch.empty((data.n_id.size(0), num_dim)).to(device)
+        # node_feature[motif_mask_indices] = motif_out
+        # node_feature[raw_mask_indices_1] = raw_out_1
+        # node_feature[raw_mask_indices_2] = raw_out_2
 
         count += 1
         data.to(device)
 
         # Get motif level graph embeddings
-        rep = heter_model(node_feature, data)
+        # rep = heter_model(node_feature, data)
 
-        train_indices_1 = torch.where(data.n_id[:data.batch_size]<(num_data1+num_motifs))
-        train_indices_2 = torch.where(data.n_id[:data.batch_size]>=(num_data1+num_motifs))
+        # train_indices_1 = torch.where(data.n_id[:data.batch_size]<(num_data1+num_motifs))
+        # train_indices_2 = torch.where(data.n_id[:data.batch_size]>=(num_data1+num_motifs))
 
-        pred1 = classifier1(rep[train_indices_1])
-        pred2 = classifier2(rep[train_indices_2])
+        # pred1 = classifier1(rep[train_indices_1])
+        # pred2 = classifier2(rep[train_indices_2])
 
-        optimizer_heter.zero_grad()
-        optimizer_motif.zero_grad()
-        optimizer_raw_1.zero_grad()
-        optimizer_raw_2.zero_grad()
-        optimizer_classifier1.zero_grad()
-        optimizer_classifier2.zero_grad()
+        pred1, pred2 = model(data, num_motifs, num_data1, motif_data, raw_data_1, raw_data_2, motif_mask_indices, raw_mask_indices_1, raw_mask_indices_2)
+
+        # optimizer_heter.zero_grad()
+        # optimizer_motif.zero_grad()
+        # optimizer_raw_1.zero_grad()
+        # optimizer_raw_2.zero_grad()
+        # optimizer_classifier1.zero_grad()
+        # optimizer_classifier2.zero_grad()
+        optimizer.zero_grad()
 
         n_id_1 = data.n_id[:data.batch_size][data.n_id[:data.batch_size]<(num_data1+num_motifs)]
         n_id_2 = data.n_id[:data.batch_size][data.n_id[:data.batch_size]>=(num_data1+num_motifs)]-num_data1
@@ -132,27 +137,29 @@ def train(loader):
         loss_mat_2 = torch.where(is_valid_2, loss_mat_2, torch.zeros(loss_mat_2.shape).to(loss_mat_2.device).to(loss_mat_2.dtype))
         loss_2 = torch.sum(loss_mat_2)/torch.sum(is_valid_2)
 
-        loss = loss_1 + loss_2
+        loss = loss_1
 
         total_loss += loss
         loss.backward()  # Derive gradients.
-        optimizer_heter.step()  # Update parameters based on gradients.
-        optimizer_motif.step()
-        optimizer_raw_1.step()
-        optimizer_raw_2.step()
-        optimizer_classifier1.step()
-        optimizer_classifier2.step()
+        optimizer.step()
+        # optimizer_heter.step()  # Update parameters based on gradients.
+        # optimizer_motif.step()
+        # optimizer_raw_1.step()
+        # optimizer_raw_2.step()
+        # optimizer_classifier1.step()
+        # optimizer_classifier2.step()
 
 
     return total_loss/count
 
 def test(loader):
-    heter_model.eval()
-    motif_model.eval()
-    raw_model_1.eval()
-    raw_model_2.eval()
-    classifier1.eval()
-    classifier2.eval()
+    model.eval()
+    # heter_model.eval()
+    # motif_model.eval()
+    # raw_model_1.eval()
+    # raw_model_2.eval()
+    # classifier1.eval()
+    # classifier2.eval()
     y_true_1 = []
     y_scores_1 = []
     roc_list_1 = []
@@ -179,49 +186,50 @@ def test(loader):
             motif_loader = DataLoader(motif_dataset[motif_mask], batch_size=len(motif_dataset[motif_mask]))
             
             for batch in motif_loader:
-                batch.to(device)
-                motif_x = batch.x
-                motif_edge_index = batch.edge_index
-                motif_edge_attr = batch.edge_attr
-                motif_batch = batch.batch
-                motif_out = motif_model(motif_x, motif_edge_index, motif_edge_attr, motif_batch)
+                motif_data = batch.to(device)
+                # motif_x = batch.x
+                # motif_edge_index = batch.edge_index
+                # motif_edge_attr = batch.edge_attr
+                # motif_batch = batch.batch
+                # motif_out = motif_model(motif_x, motif_edge_index, motif_edge_attr, motif_batch)
                 
             data1_loader = DataLoader(raw_dataset1[raw_mask_1], batch_size=len(raw_dataset1[raw_mask_1]))
             for batch in data1_loader:
-                batch.to(device)
-                raw_x = batch.x
-                raw_edge_index = batch.edge_index
-                raw_edge_attr = batch.edge_attr
-                raw_batch = batch.batch
-                raw_out_1 = raw_model_1(raw_x, raw_edge_index, raw_edge_attr, raw_batch)
+                raw_data_1 = batch.to(device)
+                # raw_x = batch.x
+                # raw_edge_index = batch.edge_index
+                # raw_edge_attr = batch.edge_attr
+                # raw_batch = batch.batch
+                # raw_out_1 = raw_model_1(raw_x, raw_edge_index, raw_edge_attr, raw_batch)
                 
             data2_loader = DataLoader(raw_dataset2[raw_mask_2], batch_size=len(raw_dataset2[raw_mask_2]))
             for batch in data2_loader:
-                batch.to(device)
-                raw_x = batch.x
-                raw_edge_index = batch.edge_index
-                raw_edge_attr = batch.edge_attr
-                raw_batch = batch.batch
-                raw_out_2 = raw_model_2(raw_x, raw_edge_index, raw_edge_attr, raw_batch)
+                raw_data_2 = batch.to(device)
+                # raw_x = batch.x
+                # raw_edge_index = batch.edge_index
+                # raw_edge_attr = batch.edge_attr
+                # raw_batch = batch.batch
+                # raw_out_2 = raw_model_2(raw_x, raw_edge_index, raw_edge_attr, raw_batch)
             
-            # node_input = torch.cat((motif_out, raw_out_1, raw_out_2), dim=0)
-            num_dim = raw_out_1.size(1)
-            node_feature = torch.empty((data.n_id.size(0), num_dim)).to(device)
-            node_feature[motif_mask_indices] = motif_out
-            node_feature[raw_mask_indices_1] = raw_out_1
-            node_feature[raw_mask_indices_2] = raw_out_2
+            # num_dim = raw_out_1.size(1)
+            # node_feature = torch.empty((data.n_id.size(0), num_dim)).to(device)
+            # node_feature[motif_mask_indices] = motif_out
+            # node_feature[raw_mask_indices_1] = raw_out_1
+            # node_feature[raw_mask_indices_2] = raw_out_2
             # print(node_input.size())
             # print(stop)
             data.to(device)
 
             # Get motif level graph embeddings
-            rep = heter_model(node_feature, data)
+            # rep = heter_model(node_feature, data)
 
-            indices_1 = torch.where(data.n_id[:data.batch_size]<(num_data1+num_motifs))
-            indices_2 = torch.where(data.n_id[:data.batch_size]>=(num_data1+num_motifs))
+            # indices_1 = torch.where(data.n_id[:data.batch_size]<(num_data1+num_motifs))
+            # indices_2 = torch.where(data.n_id[:data.batch_size]>=(num_data1+num_motifs))
 
-            pred1 = classifier1(rep[indices_1])
-            pred2 = classifier2(rep[indices_2])
+            # pred1 = classifier1(rep[indices_1])
+            # pred2 = classifier2(rep[indices_2])
+
+            pred1, pred2 = model(data, num_motifs, num_data1, motif_data, raw_data_1, raw_data_2, motif_mask_indices, raw_mask_indices_1, raw_mask_indices_2)
 
             # n_id_1 = data.n_id[data.n_id<(num_data1+num_nodes)]-num_nodes
             # n_id_2 = data.n_id[data.n_id>=(num_data1+num_nodes)]-num_nodes-num_data1
@@ -256,9 +264,9 @@ def test(loader):
         return test_acc_1, test_acc_2
 
 # set_seed(0)
-data_name = ["clintox", "sider"]
+data_name = ["bbbp", "clintox"]
 
-dataset = CombinedDataset('combined_data/' + data_name[0] + "_" + data_name[1], data_name, threshold=[5, 100])
+dataset = CombinedDataset('combined_data/' + data_name[0] + "_" + data_name[1], data_name, threshold=[50, 5])
 heter_data = dataset[0]
 motif_smiles = heter_data.motif_smiles
 selected_graphs = heter_data.graph_indices
@@ -287,8 +295,8 @@ motif_batch_size = len(motif_dataset)
 print(f"motif batch size: {motif_batch_size}")
 
 motif_loader = DataLoader(motif_dataset, batch_size=num_motifs)
-raw_dataset1 = MoleculeNet('ori_data/', data_name[0])[selected_graphs[0]]
-raw_dataset2 = MoleculeNet('ori_data/', data_name[1])[selected_graphs[1]]
+raw_dataset1 = MoleculeNet('dataset/', data_name[0])[selected_graphs[0]]
+raw_dataset2 = MoleculeNet('dataset/', data_name[1])[selected_graphs[1]]
 # data1_loader = DataLoader(raw_dataset1, batch_size=len(raw_dataset1))
 # data2_loader = DataLoader(raw_dataset2, batch_size=len(raw_dataset2))
 # print(motif_batch_size)
@@ -318,7 +326,7 @@ val_idx = val_idx[perm]
 perm = torch.randperm(test_idx.size(0))
 test_idx = test_idx[perm]
 
-batch_size = 32
+batch_size = 64
 heter_data.x = heter_data.x.contiguous()
 heter_data.edge_index = heter_data.edge_index.contiguous()
 train_loader = NeighborLoader(
@@ -340,20 +348,21 @@ batch_size=batch_size,
 input_nodes=test_idx,
 )
 
-heter_model = CGIN(300, 300, 2, 2).to(device)
-motif_model = GINModel(1, 1, 300, 300, 2, 0.5).to(device)
-raw_model_1 = GINModel(9, 3, 300, 300, 2, 0.5).to(device)
-raw_model_2 = GINModel(9, 3, 300, 300, 2, 0.5).to(device)
-classifier1 = Classifier(300, 2).to(device)
-classifier2 = Classifier(300, 27).to(device)
+# heter_model = CGIN(300, 300, 2).to(device)
+# motif_model = GINModel(1, 1, 300, 300, 2, 0.5).to(device)
+# raw_model_1 = GINModel(9, 3, 300, 300, 2, 0.5).to(device)
+# raw_model_2 = GINModel(9, 3, 300, 300, 2, 0.5).to(device)
+# classifier1 = Classifier(300, 1).to(device)
+# classifier2 = Classifier(300, 2).to(device)
+model = CrossDatasetsGIN(300, 1, 2, device).to(device)
 
-
-optimizer_heter = torch.optim.Adam(heter_model.parameters(), lr=0.01)
-optimizer_motif = torch.optim.Adam(motif_model.parameters(), lr=0.01)
-optimizer_raw_1 = torch.optim.Adam(raw_model_1.parameters(), lr=0.01)
-optimizer_raw_2 = torch.optim.Adam(raw_model_2.parameters(), lr=0.01)
-optimizer_classifier1 = torch.optim.Adam(classifier1.parameters(), lr=0.01)
-optimizer_classifier2 = torch.optim.Adam(classifier2.parameters(), lr=0.01)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.00005)
+# optimizer_heter = torch.optim.Adam(heter_model.parameters(), lr=0.0002)
+# optimizer_motif = torch.optim.Adam(motif_model.parameters(), lr=0.0002)
+# optimizer_raw_1 = torch.optim.Adam(raw_model_1.parameters(), lr=0.0002)
+# optimizer_raw_2 = torch.optim.Adam(raw_model_2.parameters(), lr=0.0002)
+# optimizer_classifier1 = torch.optim.Adam(classifier1.parameters(), lr=0.0002)
+# optimizer_classifier2 = torch.optim.Adam(classifier2.parameters(), lr=0.0002)
 
 criterion = torch.nn.BCEWithLogitsLoss(reduction = "none")
 
