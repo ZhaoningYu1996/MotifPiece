@@ -95,7 +95,7 @@ class GIN(torch.nn.Module):
         return x
         
 class CGIN(torch.nn.Module):
-    def __init__(self, num_features, hidden_dim=64, num_classes=2, num_layers=5):
+    def __init__(self, num_features, hidden_dim=64,  num_layers=5):
         super(CGIN, self).__init__()
 
         self.convs = nn.ModuleList()
@@ -107,13 +107,11 @@ class CGIN(torch.nn.Module):
             self.convs.append(GINConv(nn.Sequential(nn.Linear(hidden_dim, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, hidden_dim))))
             self.batch_norms.append(torch.nn.BatchNorm1d(hidden_dim))
         
-        self.classifier = Linear(hidden_dim, num_classes)
-        self.convs.append(GINConv(nn.Sequential(nn.Linear(hidden_dim, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, num_classes))))
         self.linear = Linear(num_features, hidden_dim)
 
     def forward(self, x, data):
         edge_index = data.edge_index
-        for i in range(len(self.convs)-1):
+        for i in range(len(self.convs)):
             x = self.convs[i](x, edge_index)
             x = self.batch_norms[i](x)
             x = F.relu(x)
@@ -131,3 +129,52 @@ class Classifier(torch.nn.Module):
     def forward(self, x):
         # x = self.fc1(x).relu()
         return self.fc2(x)
+    
+class CrossDatasetsGIN(torch.nn.Module):
+    def __init__(self, hidden_dim=64, num_classes_1=1, num_classes_2=2, device=None) -> None:
+        super(CrossDatasetsGIN, self).__init__()
+        self.motif_gnn = GINModel(1, 1, hidden_dim, hidden_dim, 2, 0.5)
+        self.raw_gnn_1 = GINModel(9, 3, hidden_dim, hidden_dim, 2, 0.5)
+        self.raw_gnn_2 = GINModel(9, 3, hidden_dim, hidden_dim, 2, 0.5)
+        self.heter_gnn = CGIN(hidden_dim, hidden_dim, 2)
+        self.classifier1= Classifier(hidden_dim, num_classes_1)
+        self.classifier2 = Classifier(hidden_dim, num_classes_2)
+        self.device = device
+
+    def forward(self, data, num_motifs, num_data1, motif_data, raw_data_1, raw_data_2, motif_mask, raw_mask_1, raw_mask_2):
+        motif_x = motif_data.x
+        motif_edge_index = motif_data.edge_index
+        motif_edge_attr = motif_data.edge_attr
+        motif_batch = motif_data.batch
+
+        motif_out = self.motif_gnn(motif_x, motif_edge_index, motif_edge_attr, motif_batch)
+
+        raw_x_1 = raw_data_1.x
+        raw_edge_index_1 = raw_data_1.edge_index
+        raw_edge_attr_1 = raw_data_1.edge_attr
+        raw_batch_1 = raw_data_1.batch
+
+        raw_out_1 = self.raw_gnn_1(raw_x_1, raw_edge_index_1, raw_edge_attr_1, raw_batch_1)
+
+        raw_x_2 = raw_data_2.x
+        raw_edge_index_2 = raw_data_2.edge_index
+        raw_edge_attr_2 = raw_data_2.edge_attr
+        raw_batch_2 = raw_data_2.batch
+
+        raw_out_2 = self.raw_gnn_2(raw_x_2, raw_edge_index_2, raw_edge_attr_2, raw_batch_2)
+
+        num_dim = raw_out_1.size(1)
+        node_feature = torch.empty((data.n_id.size(0), num_dim)).to(self.device)
+        node_feature[motif_mask] = motif_out
+        node_feature[raw_mask_1] = raw_out_1
+        node_feature[raw_mask_2] = raw_out_2
+
+        rep = self.heter_gnn(node_feature, data)
+
+        train_indices_1 = torch.where((data.n_id[:data.batch_size]<(num_data1+num_motifs)) & (data.n_id[:data.batch_size] >= num_motifs))
+        train_indices_2 = torch.where(data.n_id[:data.batch_size]>=(num_data1+num_motifs))
+
+        pred1 = self.classifier1(rep[train_indices_1])
+        pred2 = self.classifier2(rep[train_indices_2])
+
+        return pred1, pred2
