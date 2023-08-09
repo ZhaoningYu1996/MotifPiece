@@ -150,7 +150,7 @@ data_name = ["PTC_MM", "PTC_MR"]
 # num_nodes = 105                   # ER_MD, BZR_MD
 # for data_name = 
 
-dataset = CombinedDataset('combined_data/' + data_name[0] + "_" + data_name[1], data_name, threshold=[9, 9])
+dataset = CombinedDataset('combined_data/' + data_name[0] + "_" + data_name[1], data_name, threshold=[9, 3])
 data = dataset[0]
 print(data)
 motif_smiles = data.motif_smiles
