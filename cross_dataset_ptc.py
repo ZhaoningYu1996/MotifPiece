@@ -119,16 +119,16 @@ def test(data, mask1, mask2):
             data2_edge_attr = batch.edge_attr
             data2_batch = batch.batch
             data2_out = data2_model(data2_x, data2_edge_index, data2_edge_attr, data2_batch)
-        # motif_emb = data1_out[:num_nodes]
-        # node_feature = torch.cat((motif_emb, data1_out[num_nodes:], data2_out[num_nodes:]), dim=0)
+
         node_feature = torch.cat((motif_out, data1_out, data2_out), dim=0)
         out1, out2 = model(node_feature, data)
-        # out1 = classifier1(out)
-        # out2 = classifier2(out)
+
         pred1 = out1.argmax(dim=1)  # Use the class with highest probability.
         pred2 = out2.argmax(dim=1)
-        test_correct_1 = pred1[mask1] == data.y[mask1]  # Check against ground-truth labels.
-        test_correct_2 = pred2[mask2] == data.y[mask2]
+
+        test_correct_1 = pred1[mask1] == data.y[mask1].squeeze()  # Check against ground-truth labels.
+        test_correct_2 = pred2[mask2] == data.y[mask2].squeeze()
+
         test_acc_1 = int(test_correct_1.sum()) / len(mask1) # Derive ratio of correct predictions.
         test_acc_2 = int(test_correct_2.sum()) / len(mask2)
         return test_acc_1, test_acc_2
