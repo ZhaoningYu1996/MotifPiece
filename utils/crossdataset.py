@@ -83,16 +83,16 @@ class CombinedDataset(InMemoryDataset):
                         continue
                     else:
                         motifpiece_smiles_list.append(smiles)
-            name = "PTC"
-            motifpiece = MotifPiece(motifpiece_smiles_list, "motif_vocabulary/"+name+"/", threshold=9)
-            motifpiece_list = [motifpiece, motifpiece]
+            # name = "PTC"
+            
+            motifpiece_list = []
 
             for i, (dataset, name) in enumerate(zip(self.dataset, self.data_names)):
                 graph_count = 0
                 graph_indices = []
                 smiles_list = []
                 labels = []
-                for i, data in enumerate(dataset):
+                for j, data in enumerate(dataset):
                     smiles = to_smiles(data, True, name)
                     smiles = sanitize_smiles(smiles)
                     if smiles == None:
@@ -105,13 +105,16 @@ class CombinedDataset(InMemoryDataset):
                             labels.append(0)
                         else:
                             labels.append(label.item())
-                        graph_indices.append(i)
+                        graph_indices.append(j)
                 one_smiles_list.extend(smiles_list)
                 whole_smiles_list.append(smiles_list)
                 labels = torch.tensor(labels).unsqueeze(1)
                 label_list.append(labels)
                 num_graph.append(graph_count)
                 whole_graph_indices.append(graph_indices)
+
+                motifpiece = MotifPiece(motifpiece_smiles_list, "motif_vocabulary/"+self.data_names[i]+"/", threshold=self.threshold[i])
+                motifpiece_list.append(motifpiece)
 
                 for smiles in smiles_list:
                     motif_smiles_list, edge_list = motifpiece.inference(smiles)
