@@ -118,7 +118,7 @@ class HeterTUDataset(InMemoryDataset):
                     graph_indices.append(i)
             
             label_list = torch.tensor(label_list).unsqueeze(1)
-            motifpiece = MotifPiece(smiles_list, "motif_vocabulary/"+self.name+"/", threshold=1)
+            motifpiece = MotifPiece(smiles_list, "motif_vocabulary/"+self.name+"/", threshold=10)
 
         elif self.data_type == "MolNet":
 
