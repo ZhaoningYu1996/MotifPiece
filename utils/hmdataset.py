@@ -32,6 +32,9 @@ class HeterTUDataset(InMemoryDataset):
             self.dataset = TUDataset("dataset/", self.name)
             self.dataset_list = [TUDataset("dataset/", x) for x in ["PTC_MR", "PTC_FR", "PTC_MM", "PTC_FM"]]
             self.name_list = ["PTC_MR", "PTC_FR", "PTC_MM", "PTC_FM"]
+            self.data_type = "PTC"
+        elif self.name in ["COX2_MD", "BZR_MD", "DHFR_MD", "ER_MD"]:
+            self.dataset = TUDataset("dataset/", self.name)
             self.data_type = "TUData"
         else:
             smiles_list = []
@@ -64,7 +67,7 @@ class HeterTUDataset(InMemoryDataset):
     
     def process(self):
         heter_edge_attr = torch.empty((0,))
-        if self.data_type == "TUData":
+        if self.data_type == "PTC":
             all_smiles_list = []
             smiles_list = []
             label_list = []
@@ -94,6 +97,28 @@ class HeterTUDataset(InMemoryDataset):
             label_list = torch.tensor(label_list).unsqueeze(1)
             print(f"Number of all smiles: {len(all_smiles_list)}")
             motifpiece = MotifPiece(all_smiles_list, "motif_vocabulary/"+self.name+"/", threshold=1)
+        elif self.data_type == "TUData":
+            all_smiles_list = []
+            smiles_list = []
+            label_list = []
+            graph_indices = []
+
+            for i, data in enumerate(self.dataset):
+                smiles = to_smiles(data, True, self.name)
+                smiles = sanitize_smiles(smiles)
+                if smiles == None:
+                    continue
+                else:
+                    smiles_list.append(smiles)
+                    label = data.y
+                    if label.item() == -1:
+                        label_list.append(0)
+                    else:
+                        label_list.append(label.item())
+                    graph_indices.append(i)
+            
+            label_list = torch.tensor(label_list).unsqueeze(1)
+            motifpiece = MotifPiece(smiles_list, "motif_vocabulary/"+self.name+"/", threshold=1)
 
         elif self.data_type == "MolNet":
 
