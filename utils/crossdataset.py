@@ -69,45 +69,56 @@ class CombinedDataset(InMemoryDataset):
         # self.heter_node_features = torch.eye(self.num_nodes)
         # self.heter_edge_index = torch.empty((2, 0), dtype=torch.long)
         if self.data_type == "TUData":
-            self.labels = torch.empty((self.num_nodes,), dtype=torch.long)
-            selected_idx = []
-            count_selected = 0
-            self.num_graphs = []
+            whole_smiles_list = []
+            whole_graph_indices = []
+            motifpiece_smiles_list = []
+            label_list = []
+            num_graph = []
+            one_smiles_list = []
+            for i, dataset in enumerate(self.dataset_list):
+                for j, data in enumerate(dataset):
+                    smiles = to_smiles(data, True, self.name_list[i])
+                    smiles = sanitize_smiles(smiles)
+                    if smiles == None:
+                        continue
+                    else:
+                        motifpiece_smiles_list.append(smiles)
+            name = "PTC"
+            motifpiece = MotifPiece(motifpiece_smiles_list, "motif_vocabulary/"+name+"/", threshold=9)
+            motifpiece_list = [motifpiece, motifpiece]
+
             for i, (dataset, name) in enumerate(zip(self.dataset, self.data_names)):
-                print(f"Dataset: {dataset}")
-                with open("checkpoints/" + name + "_" + "bridge_nomerge_vocab_id.txt", 'r') as file:
-                    self.vocab_id = json.load(file)
-                with open("checkpoints/" + name + "_" + "bridge_nomerge_inv_vocab_mapping.txt", 'r') as file:
-                    self.inv_vocab_mapping = json.load(file)
-                data_list = []
-                count_dataset = 0
-                for data in dataset:
+                graph_count = 0
+                graph_indices = []
+                smiles_list = []
+                labels = []
+                for i, data in enumerate(dataset):
                     smiles = to_smiles(data, True, name)
                     smiles = sanitize_smiles(smiles)
                     if smiles == None:
                         continue
                     else:
-                        count_dataset += 1
+                        graph_count += 1
+                        smiles_list.append(smiles)
                         label = data.y
                         if label.item() == -1:
-                            label = torch.tensor([0])
-                        self.labels = torch.cat((self.labels, label), dim=0)
-                        new_data = convert_data(name, data)
-                        data_list.append(new_data)
-                        selected_idx.append(count_selected)
-                        count_selected += 1
-                        self.smiles_list.append(smiles)
-                        if i == 0:
-                            self.generate_heter(smiles, count, True)
+                            labels.append(0)
                         else:
-                            self.generate_heter(smiles, count, True)
-                        
-                        count += 1
-                self.num_graphs.append(count_dataset)
-                current_path = os.getcwd()
-                if not os.path.exists(current_path + "/raw_data/"+name+"/raw/"):
-                    os.makedirs(current_path + "/raw_data/"+name+"/raw/")
-                torch.save(data_list, current_path + "/raw_data/"+name+"/raw/raw_data.pt")
+                            labels.append(label.item())
+                        graph_indices.append(i)
+                one_smiles_list.extend(smiles_list)
+                whole_smiles_list.append(smiles_list)
+                labels = torch.tensor(labels).unsqueeze(1)
+                label_list.append(labels)
+                num_graph.append(graph_count)
+                whole_graph_indices.append(graph_indices)
+
+                for smiles in smiles_list:
+                    motif_smiles_list, edge_list = motifpiece.inference(smiles)
+                    for motif in motif_smiles_list:
+                        if motif not in self.motif_vocab:
+                            self.motif_vocab[motif] = len(self.motif_vocab)
+                
         elif self.data_type == "MolNet": 
             whole_graph_indices = []
             label_list = []
@@ -143,7 +154,7 @@ class CombinedDataset(InMemoryDataset):
                 
                 one_smiles_list.extend(smiles_list)
 
-                for j, smiles in enumerate(smiles_list):
+                for smiles in smiles_list:
                     motif_smiles_list, edge_list = motifpiece.inference(smiles)
                     for motif in motif_smiles_list:
                         if motif not in self.motif_vocab:
@@ -157,6 +168,7 @@ class CombinedDataset(InMemoryDataset):
             for j, smiles in enumerate(smiles_list):
                 # print(f"the dataset id: {i}, the graph id: {j}")
                 new_x = torch.zeros(len(self.motif_vocab))
+                # print(f"smiles: {smiles}")
                 motif_smiles_list, edge_list = motifpiece_list[i].inference(smiles)
                 # print(f"motif smiles list: {motif_smiles_list}")
                 for motif in motif_smiles_list:
@@ -173,13 +185,17 @@ class CombinedDataset(InMemoryDataset):
         heter_edge_index = torch.tensor(heter_edge_list).t().contiguous()
         heter_edge_index = torch.unique(heter_edge_index, dim=1)
 
-        y = []
-        for labels in label_list:
+        if self.data_type == "TUData":
             motif_labels = torch.empty((len(self.motif_vocab), labels.size(1)), dtype=torch.int64)
-            label_one_dataset = torch.cat((motif_labels, labels), dim=0)
-            print(labels.size())
-            print(label_one_dataset.size())
-            y.append(label_one_dataset)
+            y = torch.cat((motif_labels, label_list[0], label_list[1]), dim=0)
+        if self.data_type == "MolNet": 
+            y = []
+            for labels in label_list:
+                motif_labels = torch.empty((len(self.motif_vocab), labels.size(1)), dtype=torch.int64)
+                label_one_dataset = torch.cat((motif_labels, labels), dim=0)
+                print(labels.size())
+                print(label_one_dataset.size())
+                y.append(label_one_dataset)
         
 
         graph_indices = torch.tensor(graph_indices)
