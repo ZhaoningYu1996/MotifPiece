@@ -113,7 +113,7 @@ class CombinedDataset(InMemoryDataset):
                 num_graph.append(graph_count)
                 whole_graph_indices.append(graph_indices)
 
-                motifpiece = MotifPiece(motifpiece_smiles_list, "motif_vocabulary/"+self.data_names[i]+"/", threshold=self.threshold[i])
+                motifpiece = MotifPiece(motifpiece_smiles_list, "motif_vocabulary/"+name+"/", threshold=self.threshold[i])
                 motifpiece_list.append(motifpiece)
 
                 for smiles in smiles_list:
