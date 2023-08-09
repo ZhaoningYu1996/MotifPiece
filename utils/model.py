@@ -178,3 +178,16 @@ class CrossDatasetsGIN(torch.nn.Module):
         pred2 = self.classifier2(rep[train_indices_2])
 
         return pred1, pred2
+    
+class CrossTUDatasetGIN(torch.nn.Module):
+    def __init__(self, num_features, hidden_dim=64, num_classes_1=2, num_classes_2=2, num_layers=5):
+        super(CrossTUDatasetGIN, self).__init__()
+        self.GIN = CGIN(num_features, hidden_dim, num_layers)
+        self.classifier1 = Classifier(hidden_dim, num_classes_1)
+        self.classifier2 = Classifier(hidden_dim, num_classes_2)
+
+    def forward(self, x, data):
+        rep = self.GIN(x, data)
+        out1 = self.classifier1(rep)
+        out2 = self.classifier2(rep)
+        return out1, out2
