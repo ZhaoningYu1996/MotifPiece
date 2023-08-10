@@ -9,7 +9,7 @@ from utils.utils import sanitize_smiles
 from utils.motifpiece import MotifPiece
 import json
 import pandas as pd
-import csv
+import json
 from tqdm import tqdm
 
 class CombinedDataset(InMemoryDataset):
@@ -23,6 +23,8 @@ class CombinedDataset(InMemoryDataset):
         self.labels = []
         self.motif_vocab = {}
         self.raw_dataset = []
+        self.motif_vocab_1 = {}
+        self.motif_vocab_2 = {}
 
         for name in self.data_names:
             if name in ["PTC_MR", "Mutagenicity", "COX2_MD", "COX2", "BZR", "BZR_MD", "DHFR_MD", "ER_MD", "PTC_FR", "PTC_MM", "PTC_FM"]:
@@ -113,7 +115,7 @@ class CombinedDataset(InMemoryDataset):
                 num_graph.append(graph_count)
                 whole_graph_indices.append(graph_indices)
 
-                motifpiece = MotifPiece(motifpiece_smiles_list, "motif_vocabulary/"+name+"/", threshold=self.threshold[i])
+                motifpiece = MotifPiece(motifpiece_smiles_list, "motif_vocabulary/"+name+"/"+str(self.threshold[i])+"/", threshold=self.threshold[i])
                 motifpiece_list.append(motifpiece)
 
                 for smiles in smiles_list:
@@ -121,7 +123,14 @@ class CombinedDataset(InMemoryDataset):
                     for motif in motif_smiles_list:
                         if motif not in self.motif_vocab:
                             self.motif_vocab[motif] = len(self.motif_vocab)
-                
+                        if i == 0:
+                            if motif not in self.motif_vocab_1:
+                                self.motif_vocab_1[motif] = len(self.motif_vocab_1)
+                        elif i == 1:
+                            if motif not in self.motif_vocab_2:
+                                self.motif_vocab_2[motif] = len(self.motif_vocab_2)
+
+
         elif self.data_type == "MolNet": 
             whole_graph_indices = []
             label_list = []
@@ -149,7 +158,7 @@ class CombinedDataset(InMemoryDataset):
                 
                 whole_graph_indices.append(graph_indices)
                 num_graph.append(graph_count)
-                motifpiece = MotifPiece(smiles_list, "motif_vocabulary/"+name+"/", threshold=self.threshold[i])
+                motifpiece = MotifPiece(smiles_list, "motif_vocabulary/"+name+"/"+str(self.threshold[i])+"/", threshold=self.threshold[i])
                 motifpiece_list.append(motifpiece)
                 whole_smiles_list.append(smiles_list)
                 labels = torch.tensor(labels)
@@ -207,6 +216,19 @@ class CombinedDataset(InMemoryDataset):
         
         heter_data = Data(x=x, edge_index=heter_edge_index, y=y, motif_smiles=motif_smiles, graph_indices=whole_graph_indices, graph_smiles=one_smiles_list, num_graph=num_graph)
         print(f"heterogeneous graph: {heter_data}")
+
+        vocab_path_1 = "motif_stat/"+self.data_names[0]+"/"
+        vocab_path_2 = "motif_stat/"+self.data_names[1]+"/"
+        if not os.path.exists(vocab_path_1):
+            os.makedirs(vocab_path_1)
+        if not os.path.exists(vocab_path_2):
+            os.makedirs(vocab_path_2)
+
+        with open(vocab_path_1 + str(self.threshold[0]) + "_motif_vocab.txt", "w") as file:
+            file.write(json.dumps(self.motif_vocab_1))
+        
+        with open(vocab_path_2 + str(self.threshold[1]) + "_motif_vocab.txt", "w") as file:
+            file.write(json.dumps(self.motif_vocab_2))
 
         data_smiles_series = pd.Series(smiles_list)
         data_smiles_series.to_csv(os.path.join(self.processed_dir, 'smiles.csv'), index=False,header=False)

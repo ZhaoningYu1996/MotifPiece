@@ -134,7 +134,7 @@ def test(data, mask1, mask2):
         return test_acc_1, test_acc_2
 
 # set_seed(0)
-data_name = ["PTC_MM", "PTC_MR"]
+data_name = ["PTC_FM", "PTC_FR"]
 # num_data1 = 297
 # num_data2 = 210
 # num_nodes = 107
@@ -150,7 +150,7 @@ data_name = ["PTC_MM", "PTC_MR"]
 # num_nodes = 105                   # ER_MD, BZR_MD
 # for data_name = 
 
-dataset = CombinedDataset('combined_data/' + data_name[0] + "_" + data_name[1], data_name, threshold=[9, 3])
+dataset = CombinedDataset('combined_data/' + data_name[0] + "_" + data_name[1], data_name, threshold=[3, 3])
 data = dataset[0]
 print(data)
 motif_smiles = data.motif_smiles
