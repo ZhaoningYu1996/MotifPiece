@@ -274,7 +274,7 @@ def test(data, mask):
 
 # set_seed(0)
 
-data_name ="bace"
+data_name ="bbbp"
 if data_name == "bbbp":
     # num_nodes = 3153         # bridge
     # num_nodes = 2242         # BRICS
@@ -344,7 +344,7 @@ elif data_name == "tox21":
     # num_nodes = 8773             # bridge
     num_classes = 12
 # num_nodes = 2000
-dataset = HeterTUDataset('dataset/' + data_name, data_name, threshold=50, score_method="frequency")
+dataset = HeterTUDataset('dataset/' + data_name, data_name, threshold=25, score_method="tfidf")
 heter_data = dataset[0]
 
 motif_smiles = heter_data.motif_smiles
@@ -352,7 +352,7 @@ selected_graphs = heter_data.graph_indices
 num_motifs = len(motif_smiles)
 del heter_data.motif_smiles, heter_data.graph_indices
 # print(heter_data.edge_index)
-motif_dataset = MotifDataset("motif_data/"+data_name+"/frequency/25/", motif_smiles)
+motif_dataset = MotifDataset("motif_data/"+data_name+"/tfidf/25/", motif_smiles)
 motif_batch_size = len(motif_dataset)
 print(f"number of motifs: {motif_batch_size}")
 
@@ -479,7 +479,7 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     del heter_data.graph_smiles
     # print(data.edge_index)
     # print(data.edge_index.contiguous())
-    batch_size = 32
+    batch_size = 300
     heter_data.x = heter_data.x.contiguous()
     heter_data.edge_index = heter_data.edge_index.contiguous()
     train_loader = NeighborLoader(

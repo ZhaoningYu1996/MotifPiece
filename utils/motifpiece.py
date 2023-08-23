@@ -129,9 +129,11 @@ class MotifPiece:
                                 # print(stop)
                                 if label == -1:
                                     count_negative_list[p][m_smiles][i] = 1
-                                else:
-                                    
+                                elif label == 1:
                                     count_positive_list[p][m_smiles][i] = 1
+                                else:
+                                    print("label error!")
+                                    print(stop)
                             motif_element[m_smiles].add(tuple(sorted([unit1_smiles, unit2_smiles])))
 
                             if m_smiles not in motif_indices:
@@ -160,9 +162,28 @@ class MotifPiece:
                         positive_count = sum(count_positive_list[i][motif])
                         negative_count = sum(count_negative_list[i][motif])
                         label = self.label_list[:, i]
-                        label[label<0] = 0
-                        label_positive_count = torch.count_nonzero(label).item()
-                        label_negative_count = label.size(0) - label_positive_count
+                        # print(label.size())
+                        # print(stop)
+                        label_positive_count = 0
+                        label_negative_count = 0
+                        for value in label:
+                            if value == 1:
+                                label_positive_count += 1
+                            elif value == -1:
+                                label_negative_count += 1
+                            else:
+                                print(value)
+                                print("Error!")
+                                print(stop)
+                        # label[label<0] = 0
+                        # label_positive_count = torch.count_nonzero(label).item()
+                        # label_negative_count = label.size(0) - label_positive_count
+                        if positive_count>label_positive_count or negative_count>label_negative_count:
+                            print(f"positive count: {positive_count}")
+                            print(f"all positive: {label_positive_count}")
+                            print(f"negative count: {negative_count}")
+                            print(f"all negative: {label_negative_count}")
+                            print(stop)
                         dis = math.sqrt((positive_count/label_positive_count - negative_count/label_negative_count)**2)
                         idf += dis
                     idf /= len(count_positive_list)
@@ -171,9 +192,10 @@ class MotifPiece:
                     
                     demon /= (i+1)
                     # score = count*count/demon
-                    # score = count*idf/count_motif_candidate
-                    score = count
+                    # score = count*idf
+                    # score = count
                     # score = 1/(1+np.exp(-count))*idf
+                    score = math.log(count)*idf
                     if score > max_score:
                         max_score = score
                         selected_motif = motif
