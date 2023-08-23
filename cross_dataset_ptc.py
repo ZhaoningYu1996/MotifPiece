@@ -121,6 +121,7 @@ def test(data, mask1, mask2):
             data2_out = data2_model(data2_x, data2_edge_index, data2_edge_attr, data2_batch)
 
         node_feature = torch.cat((motif_out, data1_out, data2_out), dim=0)
+
         out1, out2 = model(node_feature, data)
 
         pred1 = out1.argmax(dim=1)  # Use the class with highest probability.
@@ -134,7 +135,7 @@ def test(data, mask1, mask2):
         return test_acc_1, test_acc_2
 
 # set_seed(0)
-data_name = ["PTC_FM", "PTC_FR"]
+data_name = ["PTC_MM", "PTC_FR"]
 # num_data1 = 297
 # num_data2 = 210
 # num_nodes = 107
@@ -150,7 +151,7 @@ data_name = ["PTC_FM", "PTC_FR"]
 # num_nodes = 105                   # ER_MD, BZR_MD
 # for data_name = 
 
-dataset = CombinedDataset('combined_data/' + data_name[0] + "_" + data_name[1], data_name, threshold=[3, 3])
+dataset = CombinedDataset('combined_data/' + data_name[0] + "_" + data_name[1], data_name, threshold=[5, 5])
 data = dataset[0]
 print(data)
 motif_smiles = data.motif_smiles

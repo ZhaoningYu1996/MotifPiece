@@ -22,9 +22,11 @@ import os
 
 class HeterTUDataset(InMemoryDataset):
     # def __init__(self, root, name) -> object:
-    def __init__(self, root, name, transform=None, pre_transform=None, pre_filter=None):
+    def __init__(self, root, name, threshold=None, score_method=None, transform=None, pre_transform=None, pre_filter=None):
         # super().__init__(root, transform, pre_transform, pre_filter)
         self.name = name
+        self.score_method = score_method
+        self.threshold = threshold
         self.motif_vocab = {}
         self.cliques_edge = {}
         self.check = {}
@@ -33,7 +35,7 @@ class HeterTUDataset(InMemoryDataset):
             self.dataset_list = [TUDataset("dataset/", x) for x in ["PTC_MR", "PTC_FR", "PTC_MM", "PTC_FM"]]
             self.name_list = ["PTC_MR", "PTC_FR", "PTC_MM", "PTC_FM"]
             self.data_type = "PTC"
-        elif self.name in ["COX2_MD", "BZR_MD", "DHFR_MD", "ER_MD"]:
+        elif self.name in ["COX2_MD", "BZR_MD", "DHFR_MD", "ER_MD", "Mutagenicity"]:
             self.dataset = TUDataset("dataset/", self.name)
             self.data_type = "TUData"
         else:
@@ -96,7 +98,7 @@ class HeterTUDataset(InMemoryDataset):
             
             label_list = torch.tensor(label_list).unsqueeze(1)
             print(f"Number of all smiles: {len(all_smiles_list)}")
-            motifpiece = MotifPiece(all_smiles_list, "motif_vocabulary/"+self.name+"/", threshold=1)
+            motifpiece = MotifPiece(all_smiles_list, "motif_piece/"+self.name+"/"+str(self.threshold)+"/", threshold=self.threshold, method=self.method)
         elif self.data_type == "TUData":
             all_smiles_list = []
             smiles_list = []
@@ -118,7 +120,7 @@ class HeterTUDataset(InMemoryDataset):
                     graph_indices.append(i)
             
             label_list = torch.tensor(label_list).unsqueeze(1)
-            motifpiece = MotifPiece(smiles_list, "motif_vocabulary/"+self.name+"/", threshold=10)
+            motifpiece = MotifPiece(smiles_list, "motif_piece/"+self.name+"/"+str(self.threshold)+"/", threshold=self.threshold, method=self.method)
 
         elif self.data_type == "MolNet":
 
@@ -134,19 +136,26 @@ class HeterTUDataset(InMemoryDataset):
                     graph_indices.append(i)
                     label_list.append(label)
             label_list = torch.tensor(label_list)
-            motifpiece = MotifPiece(smiles_list, "motif_vocabulary/"+self.name+"/", threshold=1)
+            # print(label_list[:100])
+            graph_labels = torch.clone(label_list).detach()
+            # print(label_list.size())
+            # print(stop)
+            motifpiece = MotifPiece(smiles_list, graph_labels, "motif_piece/"+self.name+"/"+str(self.threshold)+"/"+self.score_method+"/", threshold=self.threshold, score_method=self.score_method)
 
-        for i, smiles in enumerate(smiles_list):
-            motif_smiles_list, edge_list = motifpiece.inference(smiles)
+        
+
+        
+        heter_edge_list = []
+        motifs_tuple = motifpiece.self_inference()
+
+        for i, (motif_smiles_list, edge_list) in enumerate(zip(*motifs_tuple)):
             for motif in motif_smiles_list:
                 if motif not in self.motif_vocab:
                     self.motif_vocab[motif] = len(self.motif_vocab)
-
         x = torch.eye(len(self.motif_vocab))
-        heter_edge_list = []
-        for i, smiles in enumerate(smiles_list):
+        # print(motifs_tuple)
+        for i, (motif_smiles_list, edge_list) in enumerate(zip(*motifs_tuple)):
             new_x = torch.zeros(len(self.motif_vocab))
-            motif_smiles_list, edge_list = motifpiece.inference(smiles)
             for motif in motif_smiles_list:
                 index = self.motif_vocab[motif]
                 new_x[index] = 1
@@ -157,6 +166,26 @@ class HeterTUDataset(InMemoryDataset):
             for edge in edge_list:
                 heter_edge_list.append((self.motif_vocab[motif_smiles_list[edge[0]]], self.motif_vocab[motif_smiles_list[edge[1]]]))
                 heter_edge_list.append((self.motif_vocab[motif_smiles_list[edge[1]]], self.motif_vocab[motif_smiles_list[edge[0]]]))
+
+        # for i, smiles in enumerate(smiles_list):
+        #     motif_smiles_list, edge_list = motifpiece.inference(smiles, method=self.method)
+        #     for motif in motif_smiles_list:
+        #         if motif not in self.motif_vocab:
+        #             self.motif_vocab[motif] = len(self.motif_vocab)
+
+        # for i, smiles in enumerate(smiles_list):
+        #     new_x = torch.zeros(len(self.motif_vocab))
+        #     motif_smiles_list, edge_list = motifpiece.inference(smiles, method=self.method)
+        #     for motif in motif_smiles_list:
+        #         index = self.motif_vocab[motif]
+        #         new_x[index] = 1
+        #         heter_edge_list.append((index, i+len(self.motif_vocab)))
+        #         heter_edge_list.append((i+len(self.motif_vocab), index))
+
+        #     x = torch.cat((x, new_x.unsqueeze(dim=0)), dim=0)
+        #     for edge in edge_list:
+        #         heter_edge_list.append((self.motif_vocab[motif_smiles_list[edge[0]]], self.motif_vocab[motif_smiles_list[edge[1]]]))
+        #         heter_edge_list.append((self.motif_vocab[motif_smiles_list[edge[1]]], self.motif_vocab[motif_smiles_list[edge[0]]]))
         
         heter_edge_index = torch.tensor(heter_edge_list).t().contiguous()
         heter_edge_index = torch.unique(heter_edge_index, dim=1)
@@ -177,7 +206,11 @@ class HeterTUDataset(InMemoryDataset):
         # label_list = torch.tensor(label_list)
 
         motif_labels = torch.empty((len(self.motif_vocab), label_list.size(1)), dtype=torch.int64)
+        # print(label_list[:100])
+        # print(label_list.size())
+        # print(stop)
         y = torch.cat((motif_labels, label_list), dim=0)
+        print(f"y size: {y.size()}")
 
         graph_indices = torch.tensor(graph_indices)
 

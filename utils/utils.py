@@ -1,5 +1,6 @@
 import rdkit.Chem as Chem
-from rdkit import RDLogger 
+from rdkit import RDLogger
+from collections import defaultdict
 
 
 def get_fragment_mol(mol, atom_indices):
@@ -45,3 +46,53 @@ def sanitize_smiles(smiles):
     except Exception as e:
         return None
     return smiles
+
+def get_r_b(mol):
+    n_atoms = mol.GetNumAtoms()
+    if n_atoms == 1:
+        return [[0]], []
+
+    cliques = []
+    for bond in mol.GetBonds():
+        a1 = bond.GetBeginAtom().GetIdx()
+        a2 = bond.GetEndAtom().GetIdx()
+        if not bond.IsInRing():
+            cliques.append([a1,a2])
+
+    ssr = [list(x) for x in Chem.GetSymmSSSR(mol)]
+    cliques.extend(ssr)
+
+    nei_list = [[] for i in range(n_atoms)]
+    for i in range(len(cliques)):
+        for atom in cliques[i]:
+            nei_list[atom].append(i)
+
+    cliques = [c for c in cliques if len(c) > 0]
+    nei_list = [[] for i in range(n_atoms)]
+    for i in range(len(cliques)):
+        for atom in cliques[i]:
+            nei_list[atom].append(i)
+    
+    edges = []
+    for atom in range(n_atoms):
+        if len(nei_list[atom]) <= 1: 
+            continue
+        cnei = nei_list[atom]
+        for i in range(len(cnei)):
+            for j in range(i + 1, len(cnei)):
+                c1,c2 = cnei[i],cnei[j]
+                edges.append((c1,c2))
+    
+    s_dict = defaultdict(list)
+    v_dict = defaultdict(list)
+    e_dict = defaultdict(tuple)
+    for i, (c1, c2) in enumerate(edges):
+        e_dict[i] = (c1, c2)
+        s_dict[c1].append(i)
+        s_dict[c2].append(i)
+    for i, clique in enumerate(cliques):
+        v_dict[i] = clique
+    
+    return s_dict, v_dict, e_dict
+
+

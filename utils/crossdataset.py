@@ -119,7 +119,7 @@ class CombinedDataset(InMemoryDataset):
                 motifpiece_list.append(motifpiece)
 
                 for smiles in smiles_list:
-                    motif_smiles_list, edge_list = motifpiece.inference(smiles)
+                    motif_smiles_list, edge_list = motifpiece.inference(smiles, method="basic")
                     for motif in motif_smiles_list:
                         if motif not in self.motif_vocab:
                             self.motif_vocab[motif] = len(self.motif_vocab)
@@ -167,21 +167,30 @@ class CombinedDataset(InMemoryDataset):
                 one_smiles_list.extend(smiles_list)
 
                 for smiles in smiles_list:
-                    motif_smiles_list, edge_list = motifpiece.inference(smiles)
+                    motif_smiles_list, edge_list = motifpiece.inference(smiles, method="basic")
                     for motif in motif_smiles_list:
                         if motif not in self.motif_vocab:
                             self.motif_vocab[motif] = len(self.motif_vocab)
+                        if i == 0:
+                            if motif not in self.motif_vocab_1:
+                                self.motif_vocab_1[motif] = len(self.motif_vocab_1)
+                        elif i == 1:
+                            if motif not in self.motif_vocab_2:
+                                self.motif_vocab_2[motif] = len(self.motif_vocab_2)
 
         x = torch.eye(len(self.motif_vocab))
         heter_edge_list = []
         id = 0
+
+        print(f"Number of graphs in first dataset: {len(whole_smiles_list[0])}")
+        print(f"Number of graphs in second dataset: {len(whole_smiles_list[1])}")
 
         for i, smiles_list in enumerate(whole_smiles_list):
             for j, smiles in enumerate(smiles_list):
                 # print(f"the dataset id: {i}, the graph id: {j}")
                 new_x = torch.zeros(len(self.motif_vocab))
                 # print(f"smiles: {smiles}")
-                motif_smiles_list, edge_list = motifpiece_list[i].inference(smiles)
+                motif_smiles_list, edge_list = motifpiece_list[i].inference(smiles, method="basic")
                 # print(f"motif smiles list: {motif_smiles_list}")
                 for motif in motif_smiles_list:
                     index = self.motif_vocab[motif]

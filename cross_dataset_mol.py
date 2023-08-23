@@ -137,7 +137,7 @@ def train(loader):
         loss_mat_2 = torch.where(is_valid_2, loss_mat_2, torch.zeros(loss_mat_2.shape).to(loss_mat_2.device).to(loss_mat_2.dtype))
         loss_2 = torch.sum(loss_mat_2)/torch.sum(is_valid_2)
 
-        loss = loss_1
+        loss = loss_1+loss_2
 
         total_loss += loss
         loss.backward()  # Derive gradients.
@@ -266,7 +266,7 @@ def test(loader):
 # set_seed(0)
 data_name = ["bbbp", "clintox"]
 
-dataset = CombinedDataset('combined_data/' + data_name[0] + "_" + data_name[1], data_name, threshold=[50, 5])
+dataset = CombinedDataset('combined_data/' + data_name[0] + "_" + data_name[1], data_name, threshold=[50, 50])
 heter_data = dataset[0]
 motif_smiles = heter_data.motif_smiles
 selected_graphs = heter_data.graph_indices
@@ -326,7 +326,7 @@ val_idx = val_idx[perm]
 perm = torch.randperm(test_idx.size(0))
 test_idx = test_idx[perm]
 
-batch_size = 64
+batch_size = 32
 heter_data.x = heter_data.x.contiguous()
 heter_data.edge_index = heter_data.edge_index.contiguous()
 train_loader = NeighborLoader(
@@ -356,7 +356,7 @@ input_nodes=test_idx,
 # classifier2 = Classifier(300, 2).to(device)
 model = CrossDatasetsGIN(300, 1, 2, device).to(device)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=0.00005)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.00002)
 # optimizer_heter = torch.optim.Adam(heter_model.parameters(), lr=0.0002)
 # optimizer_motif = torch.optim.Adam(motif_model.parameters(), lr=0.0002)
 # optimizer_raw_1 = torch.optim.Adam(raw_model_1.parameters(), lr=0.0002)
@@ -366,7 +366,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.00005)
 
 criterion = torch.nn.BCEWithLogitsLoss(reduction = "none")
 
-num_epoch = 100
+num_epoch = 300
 best_val_1 = 0.0
 best_val_2 = 0.0
 best_test_1 = 0.0
