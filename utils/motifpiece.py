@@ -130,6 +130,7 @@ class MotifPiece:
                                 if label == -1:
                                     count_negative_list[p][m_smiles][i] = 1
                                 elif label == 1:
+                                # else:
                                     count_positive_list[p][m_smiles][i] = 1
                                 else:
                                     print("label error!")
@@ -158,12 +159,13 @@ class MotifPiece:
                     for i, (unit1_smiles, unit2_smiles) in enumerate(motif_element[motif]):
                         demon += unit_count[unit1_smiles]*unit_count[unit2_smiles]
                     idf = 0
+                    df = 0
+                    information_gain = 0
                     for i in range(len(count_positive_list)):
                         positive_count = sum(count_positive_list[i][motif])
                         negative_count = sum(count_negative_list[i][motif])
                         label = self.label_list[:, i]
-                        # print(label.size())
-                        # print(stop)
+
                         label_positive_count = 0
                         label_negative_count = 0
                         for value in label:
@@ -184,9 +186,22 @@ class MotifPiece:
                             print(f"negative count: {negative_count}")
                             print(f"all negative: {label_negative_count}")
                             print(stop)
+                        
+                        h_label = -label_positive_count/(label_positive_count+label_negative_count)*math.log2(label_positive_count/(label_positive_count+label_negative_count))
+                        p_m = (positive_count+negative_count)/(label_positive_count+label_negative_count)
+                        p_0_0 = (label_negative_count-negative_count+1)/(label_positive_count+label_negative_count)
+                        p_0_1 = (label_positive_count-positive_count+1)/(label_positive_count+label_negative_count)
+                        p_1_0 = (negative_count+1)/(label_positive_count+label_negative_count)
+                        p_1_1 = (positive_count+1)/(label_positive_count+label_negative_count)
+                        h_label_motif = -p_0_0*math.log2(p_0_0/p_m) - p_0_1*math.log2(p_0_1/p_m) - p_1_0*math.log2(p_1_0/p_m) - p_1_1*math.log2(p_1_1/p_m)
+                        information_gain += (h_label-h_label_motif)
+                        
+                        df += (positive_count+negative_count)/(label_positive_count+label_negative_count)
                         dis = math.sqrt((positive_count/label_positive_count - negative_count/label_negative_count)**2)
                         idf += dis
                     idf /= len(count_positive_list)
+                    df /= len(count_positive_list)
+                    information_gain /= len(count_positive_list)
 
 
                     
@@ -195,7 +210,10 @@ class MotifPiece:
                     # score = count*idf
                     # score = count
                     # score = 1/(1+np.exp(-count))*idf
-                    score = math.log(count)*idf
+                    # score = math.log(count)*idf
+                    # score = count * df # Not good
+                    # score = 1/(1+np.exp(-count))*df 
+                    score = math.log(count)*information_gain
                     if score > max_score:
                         max_score = score
                         selected_motif = motif
