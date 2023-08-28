@@ -5,7 +5,7 @@ import urllib.request
 import torch
 from torch.utils.data import Dataset
 from utils.tu2smiles import to_smiles, convert_data
-from utils.utils import sanitize_smiles
+from utils.utils import sanitize_smiles, get_mol, sanitize
 # from utils.motif_dataset import MotifDataset
 from utils.motifpiece import MotifPiece
 import json
@@ -17,6 +17,7 @@ import numpy as np
 import json
 from torch_geometric.datasets import MoleculeNet
 import os
+from rdkit.Chem import rdmolops
 
 ###### To-Do: Make it create new vocabulary based on smiles representation.
 
@@ -149,12 +150,26 @@ class HeterTUDataset(InMemoryDataset):
 
         ## Use self inference method 
         motifs_tuple = motifpiece.self_inference()
-
+        all_atom_num = []
         for i, (motif_smiles_list, edge_list) in enumerate(zip(*motifs_tuple)):
-            # print(motif_smiles_list)
+            print(motif_smiles_list)
+            atom_num = []
             for motif in motif_smiles_list:
+                mol = get_mol(motif)
+                rdmolops.AssignStereochemistry(mol)
+                if mol.GetNumAtoms() > 1:
+                    atom_num.append(mol.GetNumAtoms())
                 if motif not in self.motif_vocab:
                     self.motif_vocab[motif] = len(self.motif_vocab)
+            mean = (sum(atom_num)+1) / (len(atom_num)+1)
+            variance = (sum([((x - mean) ** 2) for x in atom_num])+1) / (len(atom_num)+1)
+            res = variance ** 0.5
+            all_atom_num.append(mean)
+        mean = sum(all_atom_num)/len(all_atom_num)
+        variance = sum([((x - mean) ** 2) for x in all_atom_num]) / len(all_atom_num)
+        res = variance ** 0.5
+        print(f"The average of atom num is {mean}, the standard deviation is {res}.")
+        print(stop)
         x = torch.eye(len(self.motif_vocab))
 
         for i, (motif_smiles_list, edge_list) in enumerate(zip(*motifs_tuple)):
@@ -171,12 +186,26 @@ class HeterTUDataset(InMemoryDataset):
                 heter_edge_list.append((self.motif_vocab[motif_smiles_list[edge[1]]], self.motif_vocab[motif_smiles_list[edge[0]]]))
 
         ### Use inference method
-
+        # all_atom_num = []
         # for i, smiles in tqdm(enumerate(smiles_list)):
         #     motif_smiles_list, edge_list = motifpiece.inference(smiles)
+        #     atom_num = []
         #     for motif in motif_smiles_list:
+        #         mol = get_mol(motif)
+        #         rdmolops.AssignStereochemistry(mol)
+        #         if mol.GetNumAtoms() > 1:
+        #             atom_num.append(mol.GetNumAtoms())
         #         if motif not in self.motif_vocab:
         #             self.motif_vocab[motif] = len(self.motif_vocab)
+        #     mean = (sum(atom_num)+1) / (len(atom_num)+1)
+        #     variance = (sum([((x - mean) ** 2) for x in atom_num])+1) / (len(atom_num)+1)
+        #     res = variance ** 0.5
+        #     all_atom_num.append(mean)
+        # mean = sum(all_atom_num)/len(all_atom_num)
+        # variance = sum([((x - mean) ** 2) for x in all_atom_num]) / len(all_atom_num)
+        # res = variance ** 0.5
+        # print(f"The average of atom num is {mean}, the standard deviation is {res}.")
+        # print(stop)
         
         # x = torch.eye(len(self.motif_vocab))
 
