@@ -14,9 +14,10 @@ from torch_geometric.data import Batch
 import random
 import os
 from tqdm import tqdm
+import csv
 
 
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
 def set_seed(seed):
     random.seed(seed)
@@ -274,7 +275,7 @@ def test(data, mask):
 
 # set_seed(0)
 
-data_name ="bace"
+data_name ="sider"
 if data_name == "bbbp":
     # num_nodes = 3153         # bridge
     # num_nodes = 2242         # BRICS
@@ -344,15 +345,43 @@ elif data_name == "tox21":
     # num_nodes = 8773             # bridge
     num_classes = 12
 # num_nodes = 2000
-dataset = HeterTUDataset('dataset/' + data_name, data_name, threshold=50, score_method="log_tf_ig")
+threshold=100
+score_method="frequency"
+merge_method = "edge"
+dataset = HeterTUDataset('dataset/' + data_name, data_name, threshold=threshold, score_method=score_method, merge_method=merge_method)
 heter_data = dataset[0]
+# print(heter_data.x[100:])
+# score_method="wrong"
+# dataset2 = HeterTUDataset('test_dataset/' + data_name, data_name, threshold=threshold, score_method=score_method)
+# test_data = dataset2[0]
+# print(test_data.x[100:])
+
+# if not torch.equal(heter_data.x, test_data.x):
+#     print("x are not equal!")
+
+# if not torch.equal(heter_data.edge_index, test_data.edge_index):
+#     print("Edge index are not equal!")
+
+# if not torch.equal(heter_data.y[57:], test_data.y[57:]):
+#     print("y are not equal!")
+
+# if not all(x == y for x,y in zip(heter_data.motif_smiles, test_data.motif_smiles)):
+#     print("motif smiles are not equal!")
+
+# if not torch.equal(heter_data.graph_indices, test_data.graph_indices):
+#     print("graph indices are not equal!")
+
+# if not all(x == y for x,y in zip(heter_data.graph_smiles, test_data.graph_smiles)):
+#     print("graph smiles are not equal!!!")
+
+# print(stop)
 
 motif_smiles = heter_data.motif_smiles
 selected_graphs = heter_data.graph_indices
 num_motifs = len(motif_smiles)
 del heter_data.motif_smiles, heter_data.graph_indices
 # print(heter_data.edge_index)
-motif_dataset = MotifDataset("motif_data/"+data_name+"/log_tf_ig/50/", motif_smiles)
+motif_dataset = MotifDataset("motif_data/"+data_name+"/"+str(merge_method)+"/"+str(score_method)+"/"+str(threshold)+"/", motif_smiles)
 motif_batch_size = len(motif_dataset)
 print(f"number of motifs: {motif_batch_size}")
 
@@ -518,10 +547,10 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     # motif_model = GCNModel(1, dim_motif, dim_motif, 3, 0.5).to(device)
     # raw_model = GCNModel(9, dim_motif, dim_motif, 3, 0.5).to(device)
 
-    optimizer_heter = torch.optim.Adam(heter_model.parameters(), lr=0.0001)
+    optimizer_heter = torch.optim.Adam(heter_model.parameters(), lr=0.00002)
     # optimizer_atom = torch.optim.Adam(atom_model.parameters(), lr=0.001)
-    optimizer_motif = torch.optim.Adam(motif_model.parameters(), lr=0.0001)
-    optimizer_raw = torch.optim.Adam(raw_model.parameters(), lr=0.0001)
+    optimizer_motif = torch.optim.Adam(motif_model.parameters(), lr=0.00002)
+    optimizer_raw = torch.optim.Adam(raw_model.parameters(), lr=0.00002)
     # optimizer_n_f = torch.optim.Adam(n_f_model.parameters(), lr=0.00005)
     # optimizer_classifier = torch.optim.Adam(classifier.parameters(), lr=0.001)
     # optimizer2 = torch.optim.Adam(atom_model.parameters(), lr=0.001)
