@@ -9,13 +9,15 @@ import numpy as np
 
 
 class MotifPiece:
-    def __init__(self, dataset = None, label_list = None, vocab_path = None, threshold=None, score_method="frequency", merge_method="edge", pre_transform = None):
+    def __init__(self, dataset = None, train_indices=None, label_list = None, vocab_path = None, threshold=None, score_method="frequency", merge_method="edge", extract_set=None, pre_transform = None):
         self.pre_transform = None
         self.threshold = threshold
         self.smiles_list = dataset
+        self.train_indices = train_indices
         self.label_list = label_list
         self.score_method = score_method
         self.merge_method = merge_method
+        self.extract_set = extract_set
 
         if os.path.isfile(vocab_path+"motif_vocab.txt"):
             with open(vocab_path+"motif_vocab.txt", "r") as file:
@@ -120,21 +122,25 @@ class MotifPiece:
                                 m_mol = get_fragment_mol(mol, m)
                                 m_smiles = get_smiles(m_mol)
                                 m_smiles = sanitize_smiles(m_smiles)
-                                # motif_count[m_smiles][i].append((edge_list[j], edge_list[k]))
-                                motif_count[m_smiles] += 1
-                                if self.score_method in ["log_tf_df_ig", "ig"]:
-                                    for p in range(len(count_positive_list)):
-                                        label = self.label_list[i][p]
-                                        # print(label)
-                                        # print(stop)
-                                        if label == -1:
-                                            count_negative_list[p][m_smiles][i] = 1
-                                        elif label == 1:
-                                        # else:
-                                            count_positive_list[p][m_smiles][i] = 1
-                                        # else:
-                                        #     print("label error!")
-                                        #     print(stop)
+                                if self.extract_set == "all":
+                                    motif_count[m_smiles] += 1
+                                ### Extract motifs based on train set
+                                if i in self.train_indices:
+                                    if self.extract_set == "training":
+                                        motif_count[m_smiles] += 1
+                                    if self.score_method in ["log_tf_df_ig", "ig", "tf_idf"]:
+                                        for p in range(len(count_positive_list)):
+                                            label = self.label_list[i][p]
+                                            # print(label)
+                                            # print(stop)
+                                            if label == -1:
+                                                count_negative_list[p][m_smiles][i] = 1
+                                            elif label == 1:
+                                            # else:
+                                                count_positive_list[p][m_smiles][i] = 1
+                                            # else:
+                                            #     print("label error!")
+                                            #     print(stop)
                                 motif_element[m_smiles].add(tuple(sorted([unit1_smiles, unit2_smiles])))
 
                                 if m_smiles not in motif_indices:
@@ -162,10 +168,16 @@ class MotifPiece:
                             for i, (unit1_smiles, unit2_smiles) in enumerate(motif_element[motif]):
                                 demon += unit_count[unit1_smiles]*unit_count[unit2_smiles]
                             demon /= (i+1)
+                        elif self.score_method == "tf_idf":
+                            df = sum(count_positive_list[0][motif]) + sum(count_negative_list[0][motif]) + 1
+                            N = self.label_list.size(0) + 1
+                            idf = math.log2(N/df)
+
                         elif self.score_method in ["log_tf_df_ig", "ig"]:
                             idf = 0
                             df = 0
                             information_gain = 0
+
                             for i in range(len(count_positive_list)):
                                 positive_count = sum(count_positive_list[i][motif])
                                 negative_count = sum(count_negative_list[i][motif])
@@ -180,21 +192,21 @@ class MotifPiece:
                                         label_negative_count += 1
 
                                 N = self.label_list.size(0)
-                                
-                                h_label = -(label_positive_count+1)/(N+1)*math.log2((label_positive_count+1)/(N+1))-(label_negative_count+1)/(N+1)*math.log2((label_negative_count+1)/(N+1))
+                                if self.score_method in ["log_tf_df_ig", "ig"]:
+                                    h_label = -(label_positive_count+1)/(N+1)*math.log2((label_positive_count+1)/(N+1))-(label_negative_count+1)/(N+1)*math.log2((label_negative_count+1)/(N+1))
 
-                                p_m_0 = (N-positive_count-negative_count+1)/(N+1)
-                                p_m_1 = (positive_count+negative_count+1)/(N+1)
+                                    p_m_0 = (N-positive_count-negative_count+1)/(N+1)
+                                    p_m_1 = (positive_count+negative_count+1)/(N+1)
 
-                                p_0_0 = (label_negative_count-negative_count+1)/(N+1)
-                                # p_0_0 = (label_negative_count-negative_count)/N
-                                p_0_1 = (label_positive_count-positive_count+1)/(N+1)
-                                p_1_0 = (negative_count+1)/(N+1)
-                                p_1_1 = (positive_count+1)/(N+1)
-                                h_label_motif_0 = -p_0_0*math.log2(p_0_0/p_m_0) - p_0_1*math.log2(p_0_1/p_m_0)
-                                h_label_motif_1 = - p_1_0*math.log2(p_1_0/p_m_1) - p_1_1*math.log2(p_1_1/p_m_1)
+                                    p_0_0 = (label_negative_count-negative_count+1)/(N+1)
+                                    # p_0_0 = (label_negative_count-negative_count)/N
+                                    p_0_1 = (label_positive_count-positive_count+1)/(N+1)
+                                    p_1_0 = (negative_count+1)/(N+1)
+                                    p_1_1 = (positive_count+1)/(N+1)
+                                    h_label_motif_0 = -p_0_0*math.log2(p_0_0/p_m_0) - p_0_1*math.log2(p_0_1/p_m_0)
+                                    h_label_motif_1 = - p_1_0*math.log2(p_1_0/p_m_1) - p_1_1*math.log2(p_1_1/p_m_1)
 
-                                information_gain += (h_label - p_m_0*h_label_motif_0 - p_m_1*h_label_motif_1)
+                                    information_gain += (h_label - p_m_0*h_label_motif_0 - p_m_1*h_label_motif_1)
                                 
                                 df += (positive_count+negative_count)/(label_positive_count+label_negative_count)
                                 dis = math.sqrt((positive_count/label_positive_count - negative_count/label_negative_count)**2)
@@ -229,6 +241,8 @@ class MotifPiece:
                             score = information_gain
                         elif self.score_method == "log_tf_df_ig":
                             score = math.log(count)*df*information_gain
+                        elif self.score_method == "tf_idf":
+                            score = count/count_motif_candidate*idf
                         # score = 1/(1+np.exp(-count))*idf
                         # score = math.log(count)*idf
                         # score = count*idf
@@ -355,7 +369,7 @@ class MotifPiece:
                     # else:
                     if iteration == 0:
                         self.dataset_smiles.append(data)
-                        s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node(mol)
+                        s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node_edge(mol)
                         s_dict_list.append(s_dict)
                         v_dict_list.append(v_dict)
                         e_dict_list.append(e_dict)
@@ -378,20 +392,23 @@ class MotifPiece:
                         m_mol = get_fragment_mol(mol, m)
                         m_smiles = get_smiles(m_mol)
                         m_smiles = sanitize_smiles(m_smiles)
+                        if self.extract_set == "all":
+                            motif_count[m_smiles] += 1
+                        ### Extract motifs based on train set
+                        if i in self.train_indices:
+                            if self.extract_set == "training":
+                                motif_count[m_smiles] += 1
+                            if self.score_method in ["log_tf_df_ig", "ig", "log_tf_df"]:
+                                for p in range(len(count_positive_list)):
+                                    label = self.label_list[i][p]
 
-                        motif_count[m_smiles] += 1
-
-                        if self.score_method in ["log_tf_df_ig", "ig"]:
-                            for p in range(len(count_positive_list)):
-                                label = self.label_list[i][p]
-
-                                if label == -1:
-                                    count_negative_list[p][m_smiles][i] = 1
-                                elif label == 1:
-                                    count_positive_list[p][m_smiles][i] = 1
-                                else:
-                                    print("label error!")
-                                    print(stop)
+                                    if label == -1:
+                                        count_negative_list[p][m_smiles][i] = 1
+                                    elif label == 1:
+                                        count_positive_list[p][m_smiles][i] = 1
+                                    else:
+                                        print("label error!")
+                                        print(stop)
 
                         if m_smiles not in motif_indices:
                             motif_indices[m_smiles] = defaultdict(list)
@@ -407,7 +424,7 @@ class MotifPiece:
                 for motif, count in motif_count.items():
                     if count > self.threshold:
                         count_graph += 1
-                        if self.score_method in ["log_tf_df_ig", "ig"]:
+                        if self.score_method in ["log_tf_df_ig", "ig", "log_tf_df"]:
                             idf = 0
                             df = 0
                             information_gain = 0
@@ -481,6 +498,8 @@ class MotifPiece:
                             score = information_gain
                         elif self.score_method == "log_tf_df_ig":
                             score = math.log(count)*df*information_gain
+                        elif self.score_method == "log_tf_df":
+                            score = math.log(count)*df
                         # score = 1/(1+np.exp(-count))*idf
                         # score = math.log(count)*idf
                         # score = count*idf
@@ -666,6 +685,65 @@ class MotifPiece:
 
         return s_dict, v_dict, e_dict, len(v_dict), len(e_dict)
     
+    def initialize_node_edge(self, mol):
+        """
+        An initialization function for node merge motif vocabulary generation
+
+        Parameters
+        ---------
+        mol: RDKit object
+            A mol that will be process for the next process
+        
+        Output
+        -----
+        v_dict: A dictionary
+            A dictionary with format subgraph_id: constituent origianl node indices of the subgraph
+        e_dict: A dictionary
+            A dictionary with format edge_id: (start_node_id, end_node_id)
+        """
+        s_dict = defaultdict(list)
+        v_dict = defaultdict(list)
+        e_dict = defaultdict(tuple)
+        output_s_dict = defaultdict(list)
+        output_v_dict = defaultdict(list)
+        output_e_dict = defaultdict(tuple)
+
+        for bond in mol.GetBonds():
+            id = bond.GetIdx()
+            startid = bond.GetBeginAtomIdx()
+            endid = bond.GetEndAtomIdx()
+            e_dict[id] = (startid, endid)
+            s_dict[startid].append(id)
+            s_dict[endid].append(id)
+        
+        for atom in mol.GetAtoms():
+            id = atom.GetIdx()
+            v_dict[id] = [id]
+            if id not in s_dict:
+                s_dict[id] = []
+
+        for edge in e_dict.keys():
+            output_v_dict[edge] = list(e_dict[edge])
+
+        node_ids = list(output_v_dict.keys())
+        for i in range(len(node_ids)):
+            output_s_dict[i] = []
+        for i in range(len(node_ids)-1):
+            for j in range(i+1, len(node_ids)):
+                if not set(output_v_dict[i]).isdisjoint(set(output_v_dict[j])):
+                    output_e_dict[len(output_e_dict)] = (i, j)
+                    output_s_dict[i].append(len(output_e_dict)-1)
+                    output_s_dict[j].append(len(output_e_dict)-1)
+
+        for atom in mol.GetAtoms():
+            id = atom.GetIdx()
+            if id not in s_dict:
+                output_v_dict[len(output_v_dict)] = [id]
+                output_s_dict[len(output_v_dict)] = []
+            
+        
+        return output_s_dict, output_v_dict, output_e_dict, len(output_v_dict), len(output_e_dict)
+    
     def inference(self, input_smiles):
         # print(f"smiles: {input_smiles}")
         mol = get_mol(input_smiles)
@@ -681,7 +759,7 @@ class MotifPiece:
                 if self.merge_method == "edge":
                     s_dict, v_dict, e_dict, max_node, max_edge = self.initialize(mol)
                 elif self.merge_method == "node":
-                    s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node(mol)
+                    s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node_edge(mol)
             
             break_all = 0
             

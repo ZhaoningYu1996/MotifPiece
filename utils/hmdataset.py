@@ -18,16 +18,19 @@ import json
 from torch_geometric.datasets import MoleculeNet
 import os
 from rdkit.Chem import rdmolops
+from utils.splitter import scaffold_split
 
 ###### To-Do: Make it create new vocabulary based on smiles representation.
 
 class HeterTUDataset(InMemoryDataset):
     # def __init__(self, root, name) -> object:
-    def __init__(self, root, name, threshold=None, score_method=None, merge_method=None, transform=None, pre_transform=None, pre_filter=None):
+    def __init__(self, root, name, threshold=None, score_method=None, merge_method=None, decomposition_method=None, extract_set=None, transform=None, pre_transform=None, pre_filter=None):
         # super().__init__(root, transform, pre_transform, pre_filter)
         self.name = name
         self.score_method = score_method
         self.merge_method = merge_method
+        self.decomposition_method = decomposition_method
+        self.extract_set = extract_set
         self.threshold = threshold
         self.motif_vocab = {}
         self.cliques_edge = {}
@@ -141,87 +144,93 @@ class HeterTUDataset(InMemoryDataset):
             graph_labels = torch.clone(label_list).detach()
             # print(label_list.size())
             # print(stop)
-            motifpiece = MotifPiece(smiles_list, graph_labels, "motif_piece/"+self.name+"/"+str(self.threshold)+"/"+self.merge_method+"/"+self.score_method+"/", threshold=self.threshold, score_method=self.score_method, merge_method=self.merge_method)
-
-        
-
+            train_indices, _, _ = scaffold_split(smiles_list)
+            train_indices = set(train_indices)
+            print(f"number of training data: {len(train_indices)}")
+            motifpiece = MotifPiece(smiles_list, train_indices, graph_labels, "motif_piece/"+self.name+"/"+str(self.threshold)+"/"+self.merge_method+"/"+self.score_method+"/"+self.extract_set+"/", threshold=self.threshold, score_method=self.score_method, merge_method=self.merge_method, extract_set=self.extract_set)
         
         heter_edge_list = []
 
-        ## Use self inference method 
-        motifs_tuple = motifpiece.self_inference()
-        all_atom_num = []
-        for i, (motif_smiles_list, edge_list) in enumerate(zip(*motifs_tuple)):
-            print(motif_smiles_list)
-            atom_num = []
-            for motif in motif_smiles_list:
-                mol = get_mol(motif)
-                rdmolops.AssignStereochemistry(mol)
-                if mol.GetNumAtoms() > 1:
-                    atom_num.append(mol.GetNumAtoms())
-                if motif not in self.motif_vocab:
-                    self.motif_vocab[motif] = len(self.motif_vocab)
-            mean = (sum(atom_num)+1) / (len(atom_num)+1)
-            variance = (sum([((x - mean) ** 2) for x in atom_num])+1) / (len(atom_num)+1)
+        ## Use self inference method
+        if self.decomposition_method == "self_decomposition":
+            motifs_tuple = motifpiece.self_inference()
+            all_atom_num = []
+            for i, (motif_smiles_list, edge_list) in enumerate(zip(*motifs_tuple)):
+                # print(motif_smiles_list)
+                atom_num = []
+                for motif in motif_smiles_list:
+                    mol = get_mol(motif)
+                    rdmolops.AssignStereochemistry(mol)
+                    if mol.GetNumAtoms() > 1:
+                        atom_num.append(mol.GetNumAtoms())
+                    if motif not in self.motif_vocab:
+                        self.motif_vocab[motif] = len(self.motif_vocab)
+                mean = (sum(atom_num)+1) / (len(atom_num)+1)
+                variance = (sum([((x - mean) ** 2) for x in atom_num])+1) / (len(atom_num)+1)
+                res = variance ** 0.5
+                all_atom_num.append(mean)
+            mean = sum(all_atom_num)/len(all_atom_num)
+            variance = sum([((x - mean) ** 2) for x in all_atom_num]) / len(all_atom_num)
             res = variance ** 0.5
-            all_atom_num.append(mean)
-        mean = sum(all_atom_num)/len(all_atom_num)
-        variance = sum([((x - mean) ** 2) for x in all_atom_num]) / len(all_atom_num)
-        res = variance ** 0.5
-        print(f"The average of atom num is {mean}, the standard deviation is {res}.")
-        print(stop)
-        x = torch.eye(len(self.motif_vocab))
+            print(f"The average of atom num is {mean}, the standard deviation is {res}.")
+            # print(stop)
+            x = torch.eye(len(self.motif_vocab))
 
-        for i, (motif_smiles_list, edge_list) in enumerate(zip(*motifs_tuple)):
-            new_x = torch.zeros(len(self.motif_vocab))
-            for motif in motif_smiles_list:
-                index = self.motif_vocab[motif]
-                new_x[index] = 1
-                heter_edge_list.append((index, i+len(self.motif_vocab)))
-                heter_edge_list.append((i+len(self.motif_vocab), index))
+            for i, (motif_smiles_list, edge_list) in enumerate(zip(*motifs_tuple)):
+                new_x = torch.zeros(len(self.motif_vocab))
+                for motif in motif_smiles_list:
+                    index = self.motif_vocab[motif]
+                    new_x[index] = 1
+                    heter_edge_list.append((index, i+len(self.motif_vocab)))
+                    heter_edge_list.append((i+len(self.motif_vocab), index))
 
-            x = torch.cat((x, new_x.unsqueeze(dim=0)), dim=0)
-            for edge in edge_list:
-                heter_edge_list.append((self.motif_vocab[motif_smiles_list[edge[0]]], self.motif_vocab[motif_smiles_list[edge[1]]]))
-                heter_edge_list.append((self.motif_vocab[motif_smiles_list[edge[1]]], self.motif_vocab[motif_smiles_list[edge[0]]]))
+                x = torch.cat((x, new_x.unsqueeze(dim=0)), dim=0)
+                for edge in edge_list:
+                    heter_edge_list.append((self.motif_vocab[motif_smiles_list[edge[0]]], self.motif_vocab[motif_smiles_list[edge[1]]]))
+                    heter_edge_list.append((self.motif_vocab[motif_smiles_list[edge[1]]], self.motif_vocab[motif_smiles_list[edge[0]]]))
 
-        ### Use inference method
-        # all_atom_num = []
-        # for i, smiles in tqdm(enumerate(smiles_list)):
-        #     motif_smiles_list, edge_list = motifpiece.inference(smiles)
-        #     atom_num = []
-        #     for motif in motif_smiles_list:
-        #         mol = get_mol(motif)
-        #         rdmolops.AssignStereochemistry(mol)
-        #         if mol.GetNumAtoms() > 1:
-        #             atom_num.append(mol.GetNumAtoms())
-        #         if motif not in self.motif_vocab:
-        #             self.motif_vocab[motif] = len(self.motif_vocab)
-        #     mean = (sum(atom_num)+1) / (len(atom_num)+1)
-        #     variance = (sum([((x - mean) ** 2) for x in atom_num])+1) / (len(atom_num)+1)
-        #     res = variance ** 0.5
-        #     all_atom_num.append(mean)
-        # mean = sum(all_atom_num)/len(all_atom_num)
-        # variance = sum([((x - mean) ** 2) for x in all_atom_num]) / len(all_atom_num)
-        # res = variance ** 0.5
-        # print(f"The average of atom num is {mean}, the standard deviation is {res}.")
-        # print(stop)
-        
-        # x = torch.eye(len(self.motif_vocab))
+        elif self.decomposition_method == "decomposition":
+            
+            ### Use inference method
+            all_atom_num = []
+            for i, smiles in tqdm(enumerate(smiles_list)):
+                motif_smiles_list, edge_list = motifpiece.inference(smiles)
+                # print(motif_smiles_list)
+                # print(stop)
+                atom_num = []
+                for motif in motif_smiles_list:
+                    mol = get_mol(motif)
+                    rdmolops.AssignStereochemistry(mol)
+                    if mol.GetNumAtoms() > 1:
+                        atom_num.append(mol.GetNumAtoms())
+                    if motif not in self.motif_vocab:
+                        self.motif_vocab[motif] = len(self.motif_vocab)
+                mean = (sum(atom_num)+1) / (len(atom_num)+1)
+                variance = (sum([((x - mean) ** 2) for x in atom_num])+1) / (len(atom_num)+1)
+                res = variance ** 0.5
+                all_atom_num.append(mean)
+            mean = sum(all_atom_num)/len(all_atom_num)
+            variance = sum([((x - mean) ** 2) for x in all_atom_num]) / len(all_atom_num)
+            res = variance ** 0.5
+            print(f"The average of atom num is {mean}, the standard deviation is {res}.")
+            # print(stop)
+            
+            x = torch.eye(len(self.motif_vocab))
 
-        # for i, smiles in tqdm(enumerate(smiles_list)):
-        #     new_x = torch.zeros(len(self.motif_vocab))
-        #     motif_smiles_list, edge_list = motifpiece.inference(smiles)
-        #     for motif in motif_smiles_list:
-        #         index = self.motif_vocab[motif]
-        #         new_x[index] = 1
-        #         heter_edge_list.append((index, i+len(self.motif_vocab)))
-        #         heter_edge_list.append((i+len(self.motif_vocab), index))
 
-        #     x = torch.cat((x, new_x.unsqueeze(dim=0)), dim=0)
-        #     for edge in edge_list:
-        #         heter_edge_list.append((self.motif_vocab[motif_smiles_list[edge[0]]], self.motif_vocab[motif_smiles_list[edge[1]]]))
-        #         heter_edge_list.append((self.motif_vocab[motif_smiles_list[edge[1]]], self.motif_vocab[motif_smiles_list[edge[0]]]))
+            for i, smiles in tqdm(enumerate(smiles_list)):
+                new_x = torch.zeros(len(self.motif_vocab))
+                motif_smiles_list, edge_list = motifpiece.inference(smiles)
+                for motif in motif_smiles_list:
+                    index = self.motif_vocab[motif]
+                    new_x[index] = 1
+                    heter_edge_list.append((index, i+len(self.motif_vocab)))
+                    heter_edge_list.append((i+len(self.motif_vocab), index))
+
+                x = torch.cat((x, new_x.unsqueeze(dim=0)), dim=0)
+                for edge in edge_list:
+                    heter_edge_list.append((self.motif_vocab[motif_smiles_list[edge[0]]], self.motif_vocab[motif_smiles_list[edge[1]]]))
+                    heter_edge_list.append((self.motif_vocab[motif_smiles_list[edge[1]]], self.motif_vocab[motif_smiles_list[edge[0]]]))
         
         heter_edge_index = torch.tensor(heter_edge_list).t().contiguous()
         heter_edge_index = torch.unique(heter_edge_index, dim=1)
