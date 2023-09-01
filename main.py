@@ -275,7 +275,7 @@ def test(data, mask):
 
 # set_seed(0)
 
-data_name ="sider"
+data_name ="bbbp"
 if data_name == "bbbp":
     # num_nodes = 3153         # bridge
     # num_nodes = 2242         # BRICS
@@ -345,10 +345,12 @@ elif data_name == "tox21":
     # num_nodes = 8773             # bridge
     num_classes = 12
 # num_nodes = 2000
-threshold=100
+threshold=50
 score_method="frequency"
 merge_method = "edge"
-dataset = HeterTUDataset('dataset/' + data_name, data_name, threshold=threshold, score_method=score_method, merge_method=merge_method)
+decomposition_method = "decomposition"
+extract_set = "all"
+dataset = HeterTUDataset('dataset/' + data_name, data_name, threshold=threshold, score_method=score_method, merge_method=merge_method, decomposition_method=decomposition_method, extract_set=extract_set)
 heter_data = dataset[0]
 # print(heter_data.x[100:])
 # score_method="wrong"
@@ -381,7 +383,7 @@ selected_graphs = heter_data.graph_indices
 num_motifs = len(motif_smiles)
 del heter_data.motif_smiles, heter_data.graph_indices
 # print(heter_data.edge_index)
-motif_dataset = MotifDataset("motif_data/"+data_name+"/"+str(merge_method)+"/"+str(score_method)+"/"+str(threshold)+"/", motif_smiles)
+motif_dataset = MotifDataset("motif_data/"+data_name+"/"+str(threshold)+"/"+str(merge_method)+"/"+str(score_method)+"/"+decomposition_method+"/"+extract_set+"/", motif_smiles)
 motif_batch_size = len(motif_dataset)
 print(f"number of motifs: {motif_batch_size}")
 
