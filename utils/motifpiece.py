@@ -369,7 +369,7 @@ class MotifPiece:
                     # else:
                     if iteration == 0:
                         self.dataset_smiles.append(data)
-                        s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node_edge(mol)
+                        s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node(mol)
                         s_dict_list.append(s_dict)
                         v_dict_list.append(v_dict)
                         e_dict_list.append(e_dict)
@@ -759,7 +759,7 @@ class MotifPiece:
                 if self.merge_method == "edge":
                     s_dict, v_dict, e_dict, max_node, max_edge = self.initialize(mol)
                 elif self.merge_method == "node":
-                    s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node_edge(mol)
+                    s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node(mol)
             
             break_all = 0
             
