@@ -275,7 +275,7 @@ def test(data, mask):
 
 # set_seed(0)
 
-data_name ="clintox"
+data_name ="bace"
 if data_name == "bbbp":
     # num_nodes = 3153         # bridge
     # num_nodes = 2242         # BRICS
@@ -345,9 +345,9 @@ elif data_name == "tox21":
     # num_nodes = 8773             # bridge
     num_classes = 12
 # num_nodes = 2000
-threshold=5
+threshold=100
 score_method="frequency"
-merge_method = "node"
+merge_method = "edge"
 decomposition_method = "decomposition"
 extract_set = "all"
 dataset = HeterTUDataset('dataset/' + data_name, data_name, threshold=threshold, score_method=score_method, merge_method=merge_method, decomposition_method=decomposition_method, extract_set=extract_set)
@@ -549,10 +549,10 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     # motif_model = GCNModel(1, dim_motif, dim_motif, 3, 0.5).to(device)
     # raw_model = GCNModel(9, dim_motif, dim_motif, 3, 0.5).to(device)
 
-    optimizer_heter = torch.optim.Adam(heter_model.parameters(), lr=0.01)
+    optimizer_heter = torch.optim.Adam(heter_model.parameters(), lr=0.001)
     # optimizer_atom = torch.optim.Adam(atom_model.parameters(), lr=0.001)
-    optimizer_motif = torch.optim.Adam(motif_model.parameters(), lr=0.01)
-    optimizer_raw = torch.optim.Adam(raw_model.parameters(), lr=0.01)
+    optimizer_motif = torch.optim.Adam(motif_model.parameters(), lr=0.001)
+    optimizer_raw = torch.optim.Adam(raw_model.parameters(), lr=0.001)
     # optimizer_n_f = torch.optim.Adam(n_f_model.parameters(), lr=0.00005)
     # optimizer_classifier = torch.optim.Adam(classifier.parameters(), lr=0.001)
     # optimizer2 = torch.optim.Adam(atom_model.parameters(), lr=0.001)
