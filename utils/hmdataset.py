@@ -49,9 +49,6 @@ class HeterTUDataset(InMemoryDataset):
             labels = []
             for data in self.raw_dataset:
                 smiles_list.append(data.smiles)
-                # if data.y.item() == 0:
-                #     print('hh')
-                # print(data.y.squeeze().tolist())
                 labels.append(data.y.squeeze().tolist())
             labels = pd.DataFrame(labels)
             labels = labels.replace(0, -1)
@@ -73,7 +70,7 @@ class HeterTUDataset(InMemoryDataset):
         return ["smiles.csv"]
     
     def process(self):
-        heter_edge_attr = torch.empty((0,))
+        # heter_edge_attr = torch.empty((0,))
         if self.data_type == "PTC":
             all_smiles_list = []
             smiles_list = []
@@ -103,7 +100,7 @@ class HeterTUDataset(InMemoryDataset):
             
             label_list = torch.tensor(label_list).unsqueeze(1)
             print(f"Number of all smiles: {len(all_smiles_list)}")
-            motifpiece = MotifPiece(all_smiles_list, "motif_piece/"+self.name+"/"+str(self.threshold)+"/", threshold=self.threshold, method=self.method)
+            motifpiece = MotifPiece(all_smiles_list, train_indices=None, label_list=label_list, vocab_path="motif_piece/"+self.name+"/"+str(self.threshold)+"/"+self.merge_method+"/"+self.score_method+"/"+self.extract_set+"/", threshold=self.threshold, score_method=self.score_method, merge_method=self.merge_method, extract_set=self.extract_set)
         elif self.data_type == "TUData":
             all_smiles_list = []
             smiles_list = []
@@ -142,9 +139,7 @@ class HeterTUDataset(InMemoryDataset):
                     label_list.append(label)
             label_list = torch.tensor(label_list)
             graph_labels = torch.clone(label_list).detach()
-            # print(label_list.size())
-            # print(stop)
-            train_indices, _, _ = scaffold_split(smiles_list)
+            train_indices, validate_indices, test_indices = scaffold_split(smiles_list)
             train_indices = set(train_indices)
             print(f"number of training data: {len(train_indices)}")
             motifpiece = MotifPiece(smiles_list, train_indices, graph_labels, "motif_piece/"+self.name+"/"+str(self.threshold)+"/"+self.merge_method+"/"+self.score_method+"/"+self.extract_set+"/", threshold=self.threshold, score_method=self.score_method, merge_method=self.merge_method, extract_set=self.extract_set)
@@ -156,7 +151,6 @@ class HeterTUDataset(InMemoryDataset):
             motifs_tuple = motifpiece.self_inference()
             all_atom_num = []
             for i, (motif_smiles_list, edge_list) in enumerate(zip(*motifs_tuple)):
-                # print(motif_smiles_list)
                 atom_num = []
                 for motif in motif_smiles_list:
                     mol = get_mol(motif)
@@ -173,7 +167,6 @@ class HeterTUDataset(InMemoryDataset):
             variance = sum([((x - mean) ** 2) for x in all_atom_num]) / len(all_atom_num)
             res = variance ** 0.5
             print(f"The average of atom num is {mean}, the standard deviation is {res}.")
-            # print(stop)
             x = torch.eye(len(self.motif_vocab))
 
             for i, (motif_smiles_list, edge_list) in enumerate(zip(*motifs_tuple)):
@@ -192,11 +185,19 @@ class HeterTUDataset(InMemoryDataset):
         elif self.decomposition_method == "decomposition":
             
             ### Use inference method
-            all_atom_num = []
+            all_atom_num_train = []
+            all_atom_num_valid = []
+            all_atom_num_test = []
+            train_motif = []
+            valid_motif = []
+            test_motif = []
+            average_motif = 0
             for i, smiles in tqdm(enumerate(smiles_list)):
-                motif_smiles_list, edge_list = motifpiece.inference(smiles)
+                # motif_smiles_list, edge_list = motifpiece.inference(smiles)
+                motif_smiles_list, edge_list = motifpiece.decomposition(smiles, merge_method=self.merge_method)
                 # print(motif_smiles_list)
                 # print(stop)
+                average_motif += len(motif_smiles_list)
                 atom_num = []
                 for motif in motif_smiles_list:
                     mol = get_mol(motif)
@@ -208,19 +209,61 @@ class HeterTUDataset(InMemoryDataset):
                 mean = (sum(atom_num)+1) / (len(atom_num)+1)
                 variance = (sum([((x - mean) ** 2) for x in atom_num])+1) / (len(atom_num)+1)
                 res = variance ** 0.5
-                all_atom_num.append(mean)
-            mean = sum(all_atom_num)/len(all_atom_num)
-            variance = sum([((x - mean) ** 2) for x in all_atom_num]) / len(all_atom_num)
-            res = variance ** 0.5
-            print(f"The average of atom num is {mean}, the standard deviation is {res}.")
-            # print(stop)
+                # if i in train_indices:
+                #     all_atom_num_train.append(mean)
+                #     train_motif.extend(motif_smiles_list)
+                # elif i in validate_indices:
+                #     all_atom_num_valid.append(mean)
+                #     valid_motif.extend(motif_smiles_list)
+                # elif i in test_indices:
+                #     all_atom_num_test.append(mean)
+                #     test_motif.extend(motif_smiles_list)
+            # average_motif /= len(smiles_list)
+
+
+            # print(f"Average number of motifs: {average_motif}")
+            # print("train motifs")
+            # print(len(train_motif))
+            # print(list(set(train_motif)))
+            # print(len(list(set(train_motif))))
+            # print("valid motifs")
+            # print(len(valid_motif))
+            # print(list(set(valid_motif)))
+            # print(len(list(set(valid_motif))))
+            # print("test motifs")
+            # print(len(test_motif))
+            # print(list(set(test_motif)))
+            # print(len(list(set(test_motif))))
+            
+            # train_mean = sum(all_atom_num_train)/len(all_atom_num_train)
+            # train_variance = sum([((x - train_mean) ** 2) for x in all_atom_num_train]) / len(all_atom_num_train)
+            # train_res = train_variance ** 0.5
+            # print(f"The average of atom num for train is {train_mean}, the standard deviation is {train_res}.")
+
+            # valid_mean = sum(all_atom_num_valid)/len(all_atom_num_valid)
+            # valid_variance = sum([((x - valid_mean) ** 2) for x in all_atom_num_valid]) / len(all_atom_num_valid)
+            # valid_res = valid_variance ** 0.5
+            # print(f"The average of atom num for valid is {valid_mean}, the standard deviation is {valid_res}.")
+
+            # test_mean = sum(all_atom_num_test)/len(all_atom_num_test)
+            # test_variance = sum([((x - test_mean) ** 2) for x in all_atom_num_test]) / len(all_atom_num_test)
+            # test_res = test_variance ** 0.5
+            # print(f"The average of atom num for test is {test_mean}, the standard deviation is {test_res}.")
+            # print(len(all_atom_num_test))
+            # # print(stop)
             
             x = torch.eye(len(self.motif_vocab))
 
 
             for i, smiles in tqdm(enumerate(smiles_list)):
                 new_x = torch.zeros(len(self.motif_vocab))
-                motif_smiles_list, edge_list = motifpiece.inference(smiles)
+                # motif_smiles_list, edge_list = motifpiece.inference(smiles)
+                motif_smiles_list, edge_list = motifpiece.decomposition(smiles, merge_method=self.merge_method)
+                # print(f"The id of the molecule: {i}")
+                # print(f"The smiles: {smiles}")
+                # print(motif_smiles_list)
+                # if i == 20:
+                #     print(stop)
                 for motif in motif_smiles_list:
                     index = self.motif_vocab[motif]
                     new_x[index] = 1

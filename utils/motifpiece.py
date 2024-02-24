@@ -6,6 +6,7 @@ from collections import defaultdict
 import torch
 import math
 import numpy as np
+import random
 
 
 class MotifPiece:
@@ -74,19 +75,12 @@ class MotifPiece:
 
             count_positive_list = [defaultdict(self.def_value) for x in range(self.label_list.size(1))]
             count_negative_list = [defaultdict(self.def_value) for x in range(self.label_list.size(1))]
-            # print(len(count_positive_list))
-            # print(len(count_positive_list[0]["hh"]))
-            # print(stop)
 
             if self.merge_method == "edge":
                 # We assume mol is not None
                 for i, data in tqdm(enumerate(dataset), desc="motif generation"):
                     mol = get_mol(data)
                     mol = sanitize(mol)
-                    # if mol == None:
-                    #     print("kk")
-                    #     continue
-                    # else:
                     if iteration == 0:
                         self.dataset_smiles.append(data)
                         s_dict, v_dict, e_dict, max_node, max_edge = self.initialize(mol)
@@ -125,22 +119,23 @@ class MotifPiece:
                                 if self.extract_set == "all":
                                     motif_count[m_smiles] += 1
                                 ### Extract motifs based on train set
-                                if i in self.train_indices:
-                                    if self.extract_set == "training":
-                                        motif_count[m_smiles] += 1
-                                    if self.score_method in ["log_tf_df_ig", "ig", "tf_idf"]:
-                                        for p in range(len(count_positive_list)):
-                                            label = self.label_list[i][p]
-                                            # print(label)
-                                            # print(stop)
-                                            if label == -1:
-                                                count_negative_list[p][m_smiles][i] = 1
-                                            elif label == 1:
-                                            # else:
-                                                count_positive_list[p][m_smiles][i] = 1
-                                            # else:
-                                            #     print("label error!")
-                                            #     print(stop)
+                                # if not self.train_indices == None:
+                                # if i in self.train_indices:
+                                #     if self.extract_set == "training":
+                                #         motif_count[m_smiles] += 1
+                                    # if self.score_method in ["log_tf_df_ig", "ig", "tf_idf"]:
+                                    #     for p in range(len(count_positive_list)):
+                                    #         label = self.label_list[i][p]
+                                    #         # print(label)
+                                    #         # print(stop)
+                                    #         if label == -1:
+                                    #             count_negative_list[p][m_smiles][i] = 1
+                                    #         elif label == 1:
+                                    #         # else:
+                                    #             count_positive_list[p][m_smiles][i] = 1
+                                    #         # else:
+                                    #         #     print("label error!")
+                                    #         #     print(stop)
                                 motif_element[m_smiles].add(tuple(sorted([unit1_smiles, unit2_smiles])))
 
                                 if m_smiles not in motif_indices:
@@ -148,13 +143,8 @@ class MotifPiece:
                                     motif_indices[m_smiles][i] = [(edge_list[j], edge_list[k])]
                                 else:
                                     motif_indices[m_smiles][i].append((edge_list[j], edge_list[k]))
-                                # print(len(motif_count))
-                                # print(motif_indices['CCC'][0])
 
-                                # print(stop)
                 
-                # print(f"s dict list: {s_dict_list}")
-                # print(stop)
                 # Select the best motif candidate
                 selected_motif = None
                 max_score = 0
@@ -215,20 +205,6 @@ class MotifPiece:
                             df /= len(count_positive_list)
                             information_gain /= len(count_positive_list)
 
-                            if information_gain > 1 or information_gain < 0:
-                                print(h_label)
-                                print(h_label_motif_0)
-                                print(h_label_motif_1)
-                                print(p_m_0)
-                                print(p_m_1)
-                                print(positive_count)
-                                print(negative_count)
-                                print(label_positive_count)
-                                print(label_negative_count)
-                                print(information_gain)
-                                print("Error!!")
-                                print(stop)
-
                         # if information_gain < 0.5:
                         #     continue
 
@@ -263,7 +239,7 @@ class MotifPiece:
                         # score = df*information_gain
                         # 
                         # score = df*information_gain
-                        # 
+                        
                         if score > max_score:
                             max_score = score
                             selected_motif = motif
@@ -274,13 +250,11 @@ class MotifPiece:
                 if selected_motif == None:
                     break
                 else:
-                    # print(f"motif count: {count_motif}")
                     count_motif += 1
-                    self.motif_vocab[selected_motif] += 1
+                    self.motif_vocab[selected_motif] = max_score
                     print(f"motif vocabulary: {self.motif_vocab}")
                     print(f"motif count: {motif_count[selected_motif]}")
                     need_merge_indices = motif_indices[selected_motif]
-                    # print(selected_motif)
                     del motif_count[selected_motif]
                     del motif_indices[selected_motif]
                     for id, edge_list in need_merge_indices.items():
@@ -294,19 +268,13 @@ class MotifPiece:
                             node_list = e_dict[edge[0]] + e_dict[edge[1]]
                             edge_nodes_list.append(node_list)
                         for p, edge in enumerate(edge_list):
-                            # print(f"edge: {edge}")
                             if not set(edge).isdisjoint(merged_edge):
                                 continue
                             merged_edge.update(set(edge))
-                            # print(f"node list: {node_list}")
                             node_list = edge_nodes_list[p]
 
                             ### Merge edges to a node!
                             union_nodes = set(node_list)
-                            if len(union_nodes) != 3:
-                                print(union_nodes)
-                                print(node_list)
-                                print(stop)
 
                             if not union_nodes.isdisjoint(merged_set):
                                 continue
@@ -325,19 +293,11 @@ class MotifPiece:
                                 elif edge[0] not in union_nodes and edge[1] in union_nodes:
                                     to_change_nodes.append(edge[0])
                                 else:
-                                    print(edge)
-                                    print(union_nodes)
                                     print("error!!!")
-                                    print(stop)
 
                             union_edge = list(union_edge)
                             to_change_nodes = list(set(to_change_nodes))
                             v_dict[max_node] = list(set(v_dict[union_nodes[0]]+v_dict[union_nodes[1]]+v_dict[union_nodes[2]]))
-                            if len(v_dict[max_node]) == 0:
-                                print(v_dict)
-                                print(s_dict)
-                                print(union_nodes)
-                                print(stop)
 
                             count_added_edge = 0
                             for node in to_change_nodes:
@@ -359,17 +319,16 @@ class MotifPiece:
 
                         s_dict_list[id], v_dict_list[id], e_dict_list[id], max_node_list[id], max_edge_list[id], mol_list[id] = s_dict, v_dict, e_dict, max_node, max_edge, mol
                             
-            elif self.merge_method == "node":
+            elif self.merge_method in ["node", "node_edge"]:
                 for i, data in tqdm(enumerate(dataset), desc="motif generation"):
                     mol = get_mol(data)
                     mol = sanitize(mol)
-                    # if mol == None:
-                    #     print("kk")
-                    #     continue
-                    # else:
                     if iteration == 0:
                         self.dataset_smiles.append(data)
-                        s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node(mol)
+                        if self.merge_method == "node":
+                            s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node(mol)
+                        elif self.merge_method == "node_edge":
+                            s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node_edge(mol)
                         s_dict_list.append(s_dict)
                         v_dict_list.append(v_dict)
                         e_dict_list.append(e_dict)
@@ -380,10 +339,7 @@ class MotifPiece:
                         v_dict, e_dict, max_node, max_edge = v_dict_list[i], e_dict_list[i], max_node_list[i], max_edge_list[i]
                     
                     ### Check all possible motif candidate which is a pair of node
-                    # print(f"e dict: {e_dict}")
                     for e_id, node_pair in e_dict.items():
-                        # print("-------------->")
-                        # print(node_pair)
                         node_1 = node_pair[0]
                         node_2 = node_pair[1]
                         ori_node_1 = v_dict[node_1]
@@ -408,7 +364,6 @@ class MotifPiece:
                                         count_positive_list[p][m_smiles][i] = 1
                                     else:
                                         print("label error!")
-                                        print(stop)
 
                         if m_smiles not in motif_indices:
                             motif_indices[m_smiles] = defaultdict(list)
@@ -443,14 +398,6 @@ class MotifPiece:
                                     else:
                                         print(value)
                                         print("Error!")
-                                        print(stop)
-
-                                if positive_count>label_positive_count or negative_count>label_negative_count:
-                                    print(f"positive count: {positive_count}")
-                                    print(f"all positive: {label_positive_count}")
-                                    print(f"negative count: {negative_count}")
-                                    print(f"all negative: {label_negative_count}")
-                                    print(stop)
                                 
                                 N = self.label_list.size(0)
                                 
@@ -473,19 +420,6 @@ class MotifPiece:
                             idf /= len(count_positive_list)
                             df /= len(count_positive_list)
                             information_gain /= len(count_positive_list)
-                            if information_gain > 1 or information_gain < 0:
-                                print(h_label)
-                                print(h_label_motif_0)
-                                print(h_label_motif_1)
-                                print(p_m_0)
-                                print(p_m_1)
-                                print(positive_count)
-                                print(negative_count)
-                                print(label_positive_count)
-                                print(label_negative_count)
-                                print(information_gain)
-                                print("Error!!")
-                                print(stop)
 
                         # if information_gain < 0.5:
                         #     continue
@@ -529,29 +463,26 @@ class MotifPiece:
                 if selected_motif == None:
                     break
                 else:
-                    self.motif_vocab[selected_motif] += 1
+                    self.motif_vocab[selected_motif] = max_score
                     print(f"motif vocabulary: {self.motif_vocab}")
                     print(f"motif count: {motif_count[selected_motif]}")
                     need_merge_indices = motif_indices[selected_motif]
                     # print(f"need merge indices: {need_merge_indices}")
                     for id, edge_list in need_merge_indices.items():
-                        # print(f"edgelist: {edge_list}")
-                        
                         merged_set = set()
                         s_dict, v_dict, e_dict, max_node, max_edge = s_dict_list[id], v_dict_list[id], e_dict_list[id], max_node_list[id], max_edge_list[id]
-                        # print(e_dict)
                         node_list_edge = []
                         for e in edge_list:
                             node_pair = e_dict[e]
                             node_1 = node_pair[0]
                             node_2 = node_pair[1]
                             node_list_edge.append((node_1, node_2))
-                            if node_1 not in v_dict or node_2 not in v_dict:
-                                print("Huge Error!")
-                                print(stop)
-                            if node_1 not in s_dict or node_2 not in s_dict:
-                                print("Huge Error!")
-                                print(stop)
+                            # if node_1 not in v_dict or node_2 not in v_dict:
+                            #     print("Huge Error!")
+                            #     print(stop)
+                            # if node_1 not in s_dict or node_2 not in s_dict:
+                            #     print("Huge Error!")
+                            #     print(stop)
                         for i, e in enumerate(edge_list):
                             node_pair = node_list_edge[i]
                             node_1 = node_pair[0]
@@ -580,7 +511,6 @@ class MotifPiece:
                                     pass
                                 else:
                                     print("Wrong merge!!!")
-                                    print(stop)
                             
                             count_added_edge = 0
                             for node in need_to_change_node:
@@ -602,13 +532,6 @@ class MotifPiece:
         self.s_dict_list = s_dict_list
         self.v_dict_list = v_dict_list
         self.e_dict_list = e_dict_list
-        # print(self.s_dict_list[1145])
-        # print(self.v_dict_list[1145])
-        # print(self.e_dict_list[1145])
-        # print(stop)
-
-        
-    
 
     def initialize(self, mol):
         """
@@ -631,9 +554,25 @@ class MotifPiece:
         s_dict = defaultdict(list)
         v_dict = {}
         e_dict = defaultdict(tuple)
+
+        num_atoms = mol.GetNumAtoms() - 1
+        bond_list = []
         
         for bond in mol.GetBonds():
+        #     bond_list.append(bond)
+        # seed = 0
+        # random.Random(seed).shuffle(bond_list)
+        # num_bond = len(bond_list)
+        # if num_bond < 3:
+        #     new_bond_list = bond_list
+        # else:
+        #     threshold = random.Random(seed).randint(0, num_bond-1)
+        #     new_bond_list = bond_list[threshold:]+bond_list[:threshold]
+        # new_bond_list = bond_list
+        # for bond in new_bond_list:
+
             id = bond.GetIdx()
+            
             startid = bond.GetBeginAtomIdx()
             endid = bond.GetEndAtomIdx()
             e_dict[id] = (startid, endid)
@@ -760,6 +699,8 @@ class MotifPiece:
                     s_dict, v_dict, e_dict, max_node, max_edge = self.initialize(mol)
                 elif self.merge_method == "node":
                     s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node(mol)
+                elif self.merge_method == "node_edge":
+                    s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node_edge(mol)
             
             break_all = 0
             
@@ -828,7 +769,7 @@ class MotifPiece:
                     if break_all == 1:
                         break
 
-            elif self.merge_method == "node":
+            elif self.merge_method in ["node", "node_edge"]:
                 for e_id, node_pair in e_dict.items():
                     node_1 = node_pair[0]
                     node_2 = node_pair[1]
@@ -845,34 +786,53 @@ class MotifPiece:
                         edge_node_2 = s_dict[node_2]
                         need_to_del_edge = []
                         need_to_change_node = []
+                        if e_id not in list(set(edge_node_1+edge_node_2)):
+                            print("ERROR!!!")
+                            print(stop)
+                        # for other_e in list(set(edge_node_1+edge_node_2)):
+                        #     first_node = e_dict[other_e][0]
+                        #     second_node = e_dict[other_e][1]
+                        #     need_to_del_edge.append(other_e)
+                        #     if first_node in [node_1, node_2] and second_node not in [node_1, node_2]:
+                        #         need_to_change_node.append(second_node)
+                        #     elif first_node not in [node_1, node_2] and second_node in [node_1, node_2]:
+                        #         need_to_change_node.append(first_node)
+                        #     elif first_node in [node_1, node_2] and second_node in [node_1, node_2]:
+                        #         pass
+                        #     else:
+                        #         print("Wrong merge!!!")
+                        #         print(stop)
+
                         for other_e in list(set(edge_node_1+edge_node_2)):
                             first_node = e_dict[other_e][0]
                             second_node = e_dict[other_e][1]
                             need_to_del_edge.append(other_e)
                             if first_node in [node_1, node_2] and second_node not in [node_1, node_2]:
-                                need_to_change_node.append(second_node)
+                                e_dict[other_e] = (max_node, second_node)
+                                s_dict[max_node].append(other_e)
                             elif first_node not in [node_1, node_2] and second_node in [node_1, node_2]:
-                                need_to_change_node.append(first_node)
+                                e_dict[other_e] = (first_node, max_node)
+                                s_dict[max_node].append(other_e)
                             elif first_node in [node_1, node_2] and second_node in [node_1, node_2]:
-                                pass
+                                del e_dict[other_e]
                             else:
                                 print("Wrong merge!!!")
                                 print(stop)
                         
-                        count_added_edge = 0
-                        for node in need_to_change_node:
-                            s_dict[node] = [x for x in s_dict[node] if x not in need_to_del_edge]
-                            e_dict[max_edge+count_added_edge] = (node, max_node)
-                            s_dict[max_node].append(max_edge+count_added_edge)
-                            s_dict[node].append(max_edge+count_added_edge)
-                            count_added_edge += 1
+                        # count_added_edge = 0
+                        # for node in need_to_change_node:
+                        #     s_dict[node] = [x for x in s_dict[node] if x not in need_to_del_edge]
+                        #     e_dict[max_edge+count_added_edge] = (node, max_node)
+                        #     s_dict[max_node].append(max_edge+count_added_edge)
+                        #     s_dict[node].append(max_edge+count_added_edge)
+                        #     count_added_edge += 1
 
-                        for item in need_to_del_edge:
-                            del e_dict[item]
+                        # for item in need_to_del_edge:
+                        #     del e_dict[item]
                         
                         del v_dict[node_1], v_dict[node_2], s_dict[node_1], s_dict[node_2]
                         max_node += 1
-                        max_edge += count_added_edge
+                        # max_edge += count_added_edge
 
                         break_all = 1
                         break
@@ -888,9 +848,12 @@ class MotifPiece:
         # print(f"e dict: {e_dict}")
         for subgraph_id, atom_list in v_dict.items():
             if len(atom_list) > 1:
+                # print("atom list:")
+                # print(atom_list)
                 m_mol = get_fragment_mol(mol, atom_list)
                 m_smiles = get_smiles(m_mol)
                 m_smiles = sanitize_smiles(m_smiles)
+                # print(m_smiles)
                 motif_smiles_list.append(m_smiles)
                 s_id_list.append(subgraph_id)
             else:
@@ -985,7 +948,231 @@ class MotifPiece:
         # print(all_motif_smiles)
         # print(all_edge_list)
         return all_motif_smiles, all_edge_list
-                                
+    
+    def decomposition(self, input_smiles, merge_method=None):
+        mol = get_mol(input_smiles)
+        mol = sanitize(mol)
+        # print(input_smiles)
+        if mol == None:
+            print("The data can not be identified by RDKit!")
+            return 0
+        
+        iteration = 0
+
+        while True:
+            # print(iteration)
+            if iteration == 0:
+                if self.merge_method == "edge":
+                    s_dict, v_dict, e_dict, max_node, max_edge = self.initialize(mol)
+                elif self.merge_method == "node":
+                    s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node(mol)
+                elif self.merge_method == "node_edge":
+                    s_dict, v_dict, e_dict, max_node, max_edge = self.initialize_node_edge(mol)
+            # print("----------------->")
+            # print(s_dict)
+            # print(v_dict)
+            # print(e_dict)
+            if merge_method == "node":
+                max_score = 0
+                motif_element = defaultdict(list)
+                selected_motif = None
+                for e_id, (s_n, e_n) in e_dict.items():
+                    n_list = list(set(v_dict[s_n]+v_dict[e_n]))
+                    m_mol = get_fragment_mol(mol, n_list)
+                    m_smiles = get_smiles(m_mol)
+                    m_smiles = sanitize_smiles(m_smiles)
+                    if m_smiles not in self.motif_vocab:
+                        continue
+                    motif_element[m_smiles].append(e_id)
+                    # score = self.motif_vocab[m_smiles]*mol.GetNumAtoms()
+                    score = mol.GetNumAtoms()
+                    if score > max_score:
+                        selected_motif = m_smiles
+                        max_score = score
+                if selected_motif == None:
+                    break
+                need_merge_indices = motif_element[selected_motif]
+
+                merged_set = set()
+                # print(e_dict)
+                node_list_edge = []
+                for e in need_merge_indices:
+                    node_pair = e_dict[e]
+                    node_1 = node_pair[0]
+                    node_2 = node_pair[1]
+                    node_list_edge.append((node_1, node_2))
+                    if node_1 not in v_dict or node_2 not in v_dict:
+                        print("Huge Error!")
+                        print(stop)
+                    if node_1 not in s_dict or node_2 not in s_dict:
+                        print("Huge Error!")
+                        print(stop)
+                for i, e in enumerate(need_merge_indices):
+                    node_pair = node_list_edge[i]
+                    node_1 = node_pair[0]
+                    node_2 = node_pair[1]
+                    if node_1 in merged_set or node_2 in merged_set:
+                        continue
+                    merged_set.add(node_1)
+                    merged_set.add(node_2)
+                    merged_node_list = list(set(v_dict[node_1]+v_dict[node_2]))
+
+                    v_dict[max_node] = merged_node_list
+
+                    edge_node_1 = s_dict[node_1]
+                    edge_node_2 = s_dict[node_2]
+                    need_to_del_edge = []
+
+                    for other_e in list(set(edge_node_1+edge_node_2)):
+                        first_node = e_dict[other_e][0]
+                        second_node = e_dict[other_e][1]
+                        need_to_del_edge.append(other_e)
+                        if first_node in [node_1, node_2] and second_node not in [node_1, node_2]:
+                            e_dict[other_e] = (max_node, second_node)
+                            s_dict[max_node].append(other_e)
+                        elif first_node not in [node_1, node_2] and second_node in [node_1, node_2]:
+                            e_dict[other_e] = (first_node, max_node)
+                            s_dict[max_node].append(other_e)
+                        elif first_node in [node_1, node_2] and second_node in [node_1, node_2]:
+                            del e_dict[other_e]
+                        else:
+                            print("Wrong merge!!!")
+                            print(stop)
+                    
+                    del v_dict[node_1], v_dict[node_2], s_dict[node_1], s_dict[node_2]
+                    max_node += 1
+                    break
+
+            elif merge_method == "edge":
+                max_score = 0
+                motif_element = defaultdict(list)
+                selected_motif = None
+                for subgraph_id, edge_list in s_dict.items():
+                    if len(edge_list) == 0:
+                        continue
+                    for j in range(len(edge_list)-1):
+                        for k in range(j+1, len(edge_list)):
+                            e1 = e_dict[edge_list[j]]
+                            e2 = e_dict[edge_list[k]]
+                            v1 = v_dict[e1[0]] + v_dict[e1[1]]
+                            v2 = v_dict[e2[0]] + v_dict[e2[1]]
+                            m = list(set(v1 + v2))
+                            m_mol = get_fragment_mol(mol, m)
+                            m_smiles = get_smiles(m_mol)
+                            m_smiles = sanitize_smiles(m_smiles)
+                            if m_smiles not in self.motif_vocab:
+                                continue
+                            motif_element[m_smiles].append((edge_list[j], edge_list[k]))
+                            # score = mol.GetNumAtoms()
+                            score = self.motif_vocab[m_smiles]
+                            if score > max_score:
+                                selected_motif = m_smiles
+                                max_score = score
+                if selected_motif == None:
+                    break
+                need_merge_indices = motif_element[selected_motif]
+
+                merged_set = set()
+                merged_edge = set()
+
+                edge_nodes_list = []
+                for edge in need_merge_indices:
+                    node_list = e_dict[edge[0]] + e_dict[edge[1]]
+                    edge_nodes_list.append(node_list)
+                for p, edge in enumerate(need_merge_indices):
+                    # print(f"edge: {edge}")
+                    if not set(edge).isdisjoint(merged_edge):
+                        continue
+                    merged_edge.update(set(edge))
+                    # print(f"node list: {node_list}")
+                    node_list = edge_nodes_list[p]
+
+                    ### Merge edges to a node!
+                    union_nodes = set(node_list)
+                    if len(union_nodes) != 3:
+                        print(union_nodes)
+                        print(node_list)
+                        print(stop)
+
+                    if not union_nodes.isdisjoint(merged_set):
+                        continue
+                    merged_set.update(union_nodes)
+                    
+                    union_nodes = list(union_nodes)
+
+                    union_edge = set(s_dict[union_nodes[0]]).union(set(s_dict[union_nodes[1]])).union(set(s_dict[union_nodes[2]]))
+                    intersection_edge = (set(s_dict[union_nodes[0]]).intersection(set(s_dict[union_nodes[1]]))).union(set(s_dict[union_nodes[1]]).intersection(set(s_dict[union_nodes[2]]))).union(set(s_dict[union_nodes[0]]).intersection(set(s_dict[union_nodes[2]])))
+                    difference_edge = union_edge - intersection_edge
+                    to_change_nodes = []
+                    for e_id in difference_edge:
+                        edge = e_dict[e_id]
+                        if edge[0] in union_nodes and edge[1] not in union_nodes:
+                            to_change_nodes.append(edge[1])
+                        elif edge[0] not in union_nodes and edge[1] in union_nodes:
+                            to_change_nodes.append(edge[0])
+                        else:
+                            print(edge)
+                            print(union_nodes)
+                            print("error!!!")
+                            print(stop)
+
+                    union_edge = list(union_edge)
+                    to_change_nodes = list(set(to_change_nodes))
+                    v_dict[max_node] = list(set(v_dict[union_nodes[0]]+v_dict[union_nodes[1]]+v_dict[union_nodes[2]]))
+                    if len(v_dict[max_node]) == 0:
+                        print(v_dict)
+                        print(s_dict)
+                        print(union_nodes)
+                        print(stop)
+
+                    count_added_edge = 0
+                    for node in to_change_nodes:
+                        e_dict[max_edge+count_added_edge] = (node, max_node)
+                        s_dict[max_node].append(max_edge+count_added_edge)
+                        s_dict[node] = [x for x in s_dict[node] if x not in union_edge]
+                        s_dict[node].append(max_edge+count_added_edge)
+                        count_added_edge += 1
+                    
+                    for e in union_edge:
+                        del e_dict[e]
+
+                    for n in union_nodes:
+                        del s_dict[n]
+                        del v_dict[n]
+
+                    max_edge += count_added_edge
+                    max_node += 1
+                    break
+
+            iteration += 1
+
+        motif_smiles_list = []
+        s_id_list = []
+
+        for subgraph_id, atom_list in v_dict.items():
+            if len(atom_list) > 1:
+                m_mol = get_fragment_mol(mol, atom_list)
+                m_smiles = get_smiles(m_mol)
+                m_smiles = sanitize_smiles(m_smiles)
+                motif_smiles_list.append(m_smiles)
+                s_id_list.append(subgraph_id)
+            else:
+                if len(s_dict[subgraph_id]) == 0:
+                    m_mol = get_fragment_mol(mol, atom_list)
+                    m_smiles = get_smiles(m_mol)
+                    m_smiles = sanitize_smiles(m_smiles)
+                    motif_smiles_list.append(m_smiles)
+                    s_id_list.append(subgraph_id)
+        
+        edge_list = []
+
+        # Miss one situation that the edge motif is original edge, and no edges for this motif
+        for edge_id, edge in e_dict.items():
+            if edge[0] in s_id_list and edge[1] in s_id_list:
+                edge_list.append((s_id_list.index(edge[0]), s_id_list.index(edge[1])))
+
+        return motif_smiles_list, edge_list
+
 
 
 
