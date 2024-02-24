@@ -22,11 +22,11 @@ If you find our work useful in your research, please consider citing:
 
 Here are some figures from our paper that illustrate [describe what the figures show]:
 
-![MotifPiece Algorithm](figures/motifpiece.pdf)
+![MotifPiece Algorithm](figures/motifpiece.png)
 
-![Heterogeneous Graph Learning Module](figures/HLM.pdf)
+![Heterogeneous Graph Learning Module](figures/HLM.png)
 
-![Cross Datasets Learning Module](figures/CDL.pdf)
+![Cross Datasets Learning Module](figures/CDL.png)
 
 ## System Requirements
 
