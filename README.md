@@ -30,19 +30,24 @@ If you find our work useful in your research, please consider citing:
 
 ![Cross Datasets Learning Module](figures/CDL.png)
 
-## System Requirements
-
-**Operating System**: Describe which OS your code has been tested on, e.g., Windows 10, Ubuntu 20.04, macOS Big Sur.
-
-**Software Requirements**: List any software and version requirements, e.g., Python 3.8, TensorFlow 2.5.
-
-**Hardware Requirements**: Mention if your code requires any specific hardware to run, such as a GPU.
-
 ## Installation
 
-Provide step-by-step instructions to set up your project. For example:
+### Environment setup
 
+We highly recommend installing [Anaconda](https://docs.anaconda.com/free/anaconda/install/index.html) for a simple environment setup and management.
+
+Download our project:
 ```bash
-git clone https://github.com/yourusername/yourprojectname.git
-cd yourprojectname
-pip install -r requirements.txt
+git clone https://github.com/ZhaoningYu1996/MotifPiece.git
+cd MotifPiece
+```
+
+Create a virtual environment with requirement packages:
+```bash
+conda env create -f environment.yml
+```
+
+Activate the virtual environment:
+```bash
+conda activate motifpiece
+```
