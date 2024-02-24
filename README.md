@@ -16,3 +16,31 @@ If you find our work useful in your research, please consider citing:
   year={2023}
 }
 ```
+
+
+### Figures from Our Paper
+
+Here are some figures from our paper that illustrate [describe what the figures show]:
+
+![MotifPiece Algorithm](figures/motifpiece.pdf)
+
+![Heterogeneous Graph Learning Module](figures/HLM.pdf)
+
+![Cross Datasets Learning Module](figures/CDL.pdf)
+
+## System Requirements
+
+**Operating System**: Describe which OS your code has been tested on, e.g., Windows 10, Ubuntu 20.04, macOS Big Sur.
+
+**Software Requirements**: List any software and version requirements, e.g., Python 3.8, TensorFlow 2.5.
+
+**Hardware Requirements**: Mention if your code requires any specific hardware to run, such as a GPU.
+
+## Installation
+
+Provide step-by-step instructions to set up your project. For example:
+
+```bash
+git clone https://github.com/yourusername/yourprojectname.git
+cd yourprojectname
+pip install -r requirements.txt
