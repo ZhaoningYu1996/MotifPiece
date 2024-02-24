@@ -4,7 +4,7 @@
 
 This project is described in detail in our paper titled "MotifPiece: A Data-Driven Approach for Effective Motif Extraction and Molecular Representation Learning". You can access the paper [here](https://arxiv.org/abs/2312.15387).
 
-### Citing
+## Citing
 
 If you find our work useful in your research, please consider citing:
 
@@ -18,13 +18,15 @@ If you find our work useful in your research, please consider citing:
 ```
 
 
-### Figures from Our Paper
-
-Here are some figures from our paper that illustrate [describe what the figures show]:
+## MotifPiece Algorithm
 
 ![MotifPiece Algorithm](figures/motifpiece.png)
 
+## Heterogeneous Graph Learning Module
+
 ![Heterogeneous Graph Learning Module](figures/HLM.png)
+
+## Cross Datasets Learning Module
 
 ![Cross Datasets Learning Module](figures/CDL.png)
 
