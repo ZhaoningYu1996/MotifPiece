@@ -51,3 +51,22 @@ Activate the virtual environment:
 ```bash
 conda activate motifpiece
 ```
+
+### Usage
+
+To reproduce the results of running single dataset from the paper:
+```bash
+python main.py
+```
+
+To reproduce the results of cross datasets learning from the paper:
+```bash
+python cross_dataset_mol.py   # Datasets in MoleculeNet
+python cross_dataset_ptc.py   # PTC datasets
+```
+
+To apply MotifPiece and extract motifs on a personal SMILES representation dataset, you can use MotifPiece class in motifpiece.py:
+```bash
+motifpiece = MotifPiece(*args)
+```
+In `*args`, you can setup `threshold`, `score_method`, and `merge_method`. You can also setup `train_indices` to only extract motifs from the training set.
