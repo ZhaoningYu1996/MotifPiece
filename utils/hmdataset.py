@@ -195,8 +195,6 @@ class HeterTUDataset(InMemoryDataset):
             for i, smiles in tqdm(enumerate(smiles_list)):
                 # motif_smiles_list, edge_list = motifpiece.inference(smiles)
                 motif_smiles_list, edge_list = motifpiece.decomposition(smiles, merge_method=self.merge_method)
-                # print(motif_smiles_list)
-                # print(stop)
                 average_motif += len(motif_smiles_list)
                 atom_num = []
                 for motif in motif_smiles_list:
@@ -259,11 +257,6 @@ class HeterTUDataset(InMemoryDataset):
                 new_x = torch.zeros(len(self.motif_vocab))
                 # motif_smiles_list, edge_list = motifpiece.inference(smiles)
                 motif_smiles_list, edge_list = motifpiece.decomposition(smiles, merge_method=self.merge_method)
-                # print(f"The id of the molecule: {i}")
-                # print(f"The smiles: {smiles}")
-                # print(motif_smiles_list)
-                # if i == 20:
-                #     print(stop)
                 for motif in motif_smiles_list:
                     index = self.motif_vocab[motif]
                     new_x[index] = 1
@@ -294,9 +287,6 @@ class HeterTUDataset(InMemoryDataset):
         # label_list = torch.tensor(label_list)
 
         motif_labels = torch.empty((len(self.motif_vocab), label_list.size(1)), dtype=torch.int64)
-        # print(label_list[:100])
-        # print(label_list.size())
-        # print(stop)
         y = torch.cat((motif_labels, label_list), dim=0)
         print(f"y size: {y.size()}")
 

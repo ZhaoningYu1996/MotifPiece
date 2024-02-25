@@ -140,6 +140,7 @@ def test_mol(loader):
     y_scores = []
     roc_list = []
     with torch.no_grad():
+        FP_id = []
         for data in loader:
             data.to(device)
             mask = data.n_id
@@ -189,6 +190,11 @@ def test_mol(loader):
                 # pred = classifier(out)
             y_true.append(data.y[:data.batch_size].view(pred.shape))
             y_scores.append(pred)
+
+            result = np.where(pred.cpu()>0.4)[0].tolist()
+            y = np.where(data.y[:data.batch_size].cpu() == 1)[0].tolist()
+            pos = list(set(result) - set(y)) + list(set(y) - set(result))
+            FP_id.extend(data.n_id[:data.batch_size][pos].tolist())
         y_true = torch.cat(y_true, dim=0).cpu().numpy()
         y_scores = torch.cat(y_scores, dim=0).cpu().numpy()
         roc_list = []
@@ -198,7 +204,7 @@ def test_mol(loader):
             if np.sum(y_true[:,i] == 1) > 0 and np.sum(y_true[:,i] == -1) > 0:
                 is_valid = y_true[:,i]**2 > 0
                 roc_list.append(roc_auc_score((y_true[is_valid,i] + 1)/2, y_scores[is_valid,i]))
-    return sum(roc_list)/len(roc_list) #y_true.shape[1]
+    return sum(roc_list)/len(roc_list), FP_id #y_true.shape[1]
         
 
 def train(data, mask):
@@ -275,7 +281,7 @@ def test(data, mask):
 
 # set_seed(0)
 
-data_name ="bace"
+data_name ="tox21"
 if data_name == "bbbp":
     # num_nodes = 3153         # bridge
     # num_nodes = 2242         # BRICS
@@ -345,13 +351,20 @@ elif data_name == "tox21":
     # num_nodes = 8773             # bridge
     num_classes = 12
 # num_nodes = 2000
-threshold=100
+threshold=50
 score_method="frequency"
 merge_method = "edge"
 decomposition_method = "decomposition"
 extract_set = "all"
 dataset = HeterTUDataset('dataset/' + data_name, data_name, threshold=threshold, score_method=score_method, merge_method=merge_method, decomposition_method=decomposition_method, extract_set=extract_set)
+
 heter_data = dataset[0]
+num_nodes = heter_data.x.size(0)
+num_edges = heter_data.edge_index.size(1)
+print(f"Number of nodes: {num_nodes}")
+print(f"Number of edges: {num_edges}")
+print(f"Average degree: {num_edges/num_nodes}")
+# print(stop)
 # print(heter_data.x[100:])
 # score_method="wrong"
 # dataset2 = HeterTUDataset('test_dataset/' + data_name, data_name, threshold=threshold, score_method=score_method)
@@ -510,7 +523,7 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     del heter_data.graph_smiles
     # print(data.edge_index)
     # print(data.edge_index.contiguous())
-    batch_size = 32
+    batch_size = 2000
     heter_data.x = heter_data.x.contiguous()
     heter_data.edge_index = heter_data.edge_index.contiguous()
     train_loader = NeighborLoader(
@@ -549,10 +562,10 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     # motif_model = GCNModel(1, dim_motif, dim_motif, 3, 0.5).to(device)
     # raw_model = GCNModel(9, dim_motif, dim_motif, 3, 0.5).to(device)
 
-    optimizer_heter = torch.optim.Adam(heter_model.parameters(), lr=0.001)
+    optimizer_heter = torch.optim.Adam(heter_model.parameters(), lr=0.01)
     # optimizer_atom = torch.optim.Adam(atom_model.parameters(), lr=0.001)
-    optimizer_motif = torch.optim.Adam(motif_model.parameters(), lr=0.001)
-    optimizer_raw = torch.optim.Adam(raw_model.parameters(), lr=0.001)
+    optimizer_motif = torch.optim.Adam(motif_model.parameters(), lr=0.01)
+    optimizer_raw = torch.optim.Adam(raw_model.parameters(), lr=0.01)
     # optimizer_n_f = torch.optim.Adam(n_f_model.parameters(), lr=0.00005)
     # optimizer_classifier = torch.optim.Adam(classifier.parameters(), lr=0.001)
     # optimizer2 = torch.optim.Adam(atom_model.parameters(), lr=0.001)
@@ -561,14 +574,18 @@ elif data_name in ["bbbp", "bace", "clintox", "muv", "hiv", "sider", "tox21", "t
     num_epoch = 100
     best_val = 0.0
     best_test = 0.0
+    best_fp = None
     for epoch in range(1, num_epoch+1):
         loss = train_mol(train_loader)
-        train_acc = test_mol(train_loader)
-        val_acc = test_mol(val_loader)
-        test_acc = test_mol(test_loader)
+        train_acc, FP_train = test_mol(train_loader)
+        val_acc, FP_val = test_mol(val_loader)
+        test_acc, FP_test = test_mol(test_loader)
+        
         if val_acc > best_val:
             best_val = val_acc
             best_test = test_acc
+            best_fp = (FP_train, FP_val, FP_test)
         print(f'Epoch: {epoch:03d}, Loss: {loss:.4f}, Train acc: {train_acc:.4f}, Validate acc: {val_acc}, Test acc: {test_acc:.4f}.')
     print(f"Best validate acc: {best_val}, Best test acc; {best_test}.")
+    print(f"Best FP: {best_fp}")
 
