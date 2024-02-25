@@ -1,23 +1,5 @@
 # MotifPiece
 
-## Publication
-
-This project is described in detail in our paper titled "MotifPiece: A Data-Driven Approach for Effective Motif Extraction and Molecular Representation Learning". You can access the paper [here](https://arxiv.org/abs/2312.15387).
-
-## Citing
-
-If you find our work useful in your research, please consider citing:
-
-```
-@article{yu2023motifpiece,
-  title={MotifPiece: A Data-Driven Approach for Effective Motif Extraction and Molecular Representation Learning},
-  author={Yu, Zhaoning and Gao, Hongyang},
-  journal={arXiv preprint arXiv:2312.15387},
-  year={2023}
-}
-```
-
-
 ## MotifPiece Algorithm
 
 ![MotifPiece Algorithm](figures/motifpiece.png)
@@ -56,7 +38,7 @@ conda activate motifpiece
 
 To reproduce the results of running single dataset from the paper:
 ```bash
-python main.py
+python main.py --data_name --threshold --score_method --merge_method --decomposition_method
 ```
 
 To reproduce the results of cross datasets learning from the paper:
