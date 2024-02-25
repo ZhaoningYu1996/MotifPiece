@@ -1,7 +1,6 @@
 import torch
 from utils.hmdataset import HeterTUDataset
 from utils.motif_dataset import MotifDataset
-# from utils.raw_dataset import RawDataset
 from torch_geometric.datasets import MoleculeNet, TUDataset
 from utils.model import GIN, GINModel
 import numpy as np
@@ -15,6 +14,7 @@ import random
 import os
 from tqdm import tqdm
 import csv
+import argparse
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -278,10 +278,18 @@ def test(data, mask):
         test_acc = int(test_correct.sum()) / len(mask)  # Derive ratio of correct predictions.
         return test_acc
 
+parser = argparse.ArgumentParser(description='Environment setup.')
+parser.add_argument('--data_name', type=str, help='Input file name')
+parser.add_argument('--threshold', type=int, help='Threshold used in MotifPiece', default=100)
+parser.add_argument('--score_method', type=str, help='Score_method used in MotifPiece', default='frequency')
+parser.add_argument('--merge_method', type=str, help='Merge_method used in MotifPiece', default='edge')
+parser.add_argument('--decomposition_method', type=str, help='Decomposition_method used to create the heterogeneous graph', default='decomposition')
+parser.add_argument('--extract_set', type=str, help='Extract_set used to create the heterogeneous graph', default='all')
 
-# set_seed(0)
+args = parser.parse_args()
 
-data_name ="tox21"
+data_name = args.data_name
+
 if data_name == "bbbp":
     # num_nodes = 3153         # bridge
     # num_nodes = 2242         # BRICS
@@ -351,11 +359,11 @@ elif data_name == "tox21":
     # num_nodes = 8773             # bridge
     num_classes = 12
 # num_nodes = 2000
-threshold=50
-score_method="frequency"
-merge_method = "edge"
-decomposition_method = "decomposition"
-extract_set = "all"
+threshold=args.threshold
+score_method=args.score_method
+merge_method = args.merge_method
+decomposition_method = args.decomposition_method
+extract_set = args.extract_set
 dataset = HeterTUDataset('dataset/' + data_name, data_name, threshold=threshold, score_method=score_method, merge_method=merge_method, decomposition_method=decomposition_method, extract_set=extract_set)
 
 heter_data = dataset[0]
