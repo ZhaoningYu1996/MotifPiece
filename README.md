@@ -25,6 +25,8 @@ Required Libraries:
 > torch_sparse
 > rdkit
 > ogb
+> pandas
+> scikit-learn
 
 Download our project:
 ```bash
@@ -35,6 +37,19 @@ cd MotifPiece
 Create a virtual environment with requirement packages:
 ```bash
 conda env create -f environment.yml
+```
+
+If this does not work, you can also install environment follow below commands:
+```bash
+conda create myEnv python=3.9
+conda activate myEnv
+pip3 install torch torchvision torchaudio
+pip install torch_geometric
+pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-${TORCH}+${CUDA}.html
+pip install rdkit
+pip install ogb
+pip install pandas
+pip install scikit-learn
 ```
 
 Activate the virtual environment:
