@@ -18,6 +18,14 @@
 
 We highly recommend installing [Anaconda](https://docs.anaconda.com/free/anaconda/install/index.html) for a simple environment setup and management.
 
+Required Libraries:
+> pytorch
+> pytorch geometric
+> pyg_lib 
+> torch_sparse
+> rdkit
+> ogb
+
 Download our project:
 ```bash
 git clone https://github.com/ZhaoningYu1996/MotifPiece.git
